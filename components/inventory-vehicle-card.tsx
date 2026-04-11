@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { Calendar, Gauge, Zap } from 'lucide-react';
+import { ArrowUpRight, Calendar, Gauge, Zap } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,7 @@ export function InventoryVehicleCard({ car, compact = false }: InventoryVehicleC
   return (
     <Link href={`/cars/${car.slug}`} className="block h-full">
       <Card variant="interactive" className="group h-full rounded-[1.75rem]">
-        <div className={compact ? 'relative aspect-[4/4.1]' : 'relative aspect-[4/4.6]'}>
+        <div className={compact ? 'relative aspect-[4/4.2]' : 'relative aspect-[4/4.75]'}>
           {car.hero_image_url ? (
             <Image
               src={car.hero_image_url}
@@ -39,7 +39,7 @@ export function InventoryVehicleCard({ car, compact = false }: InventoryVehicleC
             <Badge variant="secondary" className="bg-black/35 text-white backdrop-blur-md">
               {car.status === 'sold' ? 'Sold' : 'Available'}
             </Badge>
-            <div className="rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-white">
+            <div className="rounded-[0.9rem] border border-white/10 bg-black/45 px-3 py-2 text-[0.68rem] font-semibold tracking-[0.16em] text-white">
               ${Math.round(Number(car.price)).toLocaleString()}
             </div>
           </div>
@@ -49,11 +49,11 @@ export function InventoryVehicleCard({ car, compact = false }: InventoryVehicleC
             </div>
           )}
         </div>
-        <CardContent className="space-y-4 p-5">
+          <CardContent className="space-y-4 p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[0.72rem] uppercase tracking-[0.28em] text-brand-dim">{car.make}</p>
-              <h3 className="font-display text-[2rem] leading-none text-white">{car.title}</h3>
+              <h3 className="font-display text-[1.9rem] leading-none text-white">{car.title}</h3>
             </div>
             <span className="pt-1 text-xs font-semibold uppercase tracking-[0.22em] text-accent/80">
               {car.year}
@@ -68,7 +68,8 @@ export function InventoryVehicleCard({ car, compact = false }: InventoryVehicleC
             ))}
           </div>
           <Button variant="ghost" className="px-0 text-[0.66rem] text-accent hover:bg-transparent hover:text-white">
-            Explore Vehicle
+            View Details
+            <ArrowUpRight className="h-4 w-4" />
           </Button>
         </CardContent>
       </Card>

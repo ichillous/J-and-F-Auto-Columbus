@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { unstable_noStore } from 'next/cache';
 
@@ -91,22 +92,28 @@ export default async function InventoryPage({
   const maxYear = years.length > 0 ? Math.max(...years) : new Date().getFullYear();
   const minPriceBound = prices.length > 0 ? Math.floor(Math.min(...prices) / 1000) * 1000 : 0;
   const maxPriceBound = prices.length > 0 ? Math.ceil(Math.max(...prices) / 1000) * 1000 : 100000;
+  const hasLiveInventory = (allCars?.length ?? 0) > 0;
+  const hasActiveFilters = Object.entries(resolvedSearchParams).some(([, value]) => Boolean(value));
 
   return (
     <PublicShell currentPath="/inventory">
       <div className="shell-container py-10 sm:py-12 lg:py-16">
-        <section className="mb-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <section className="mb-10 grid gap-6 border-b border-white/8 pb-8 lg:grid-cols-[1fr,auto] lg:items-end">
           <div className="space-y-3">
             <p className="section-kicker">Current Inventory</p>
-            <h1 className="page-title text-balance">Available Machines Ready For Immediate Dispatch.</h1>
-            <p className="page-subtitle">
-              The current collection is built from the vehicles already in your live inventory. The experience is now premium, but it still reflects only real records in your database.
+            <h1 className="font-display text-4xl uppercase tracking-[0.05em] text-white sm:text-5xl lg:text-6xl">
+              Current Inventory
+            </h1>
+            <p className="page-subtitle max-w-3xl">
+              Available precision machines ready for immediate dispatch.
             </p>
           </div>
-          <div className="glass-panel flex min-w-[240px] flex-col rounded-[1.5rem] px-5 py-4 text-sm text-brand-dim">
-            <span className="section-kicker mb-2">Sort</span>
-            <span className="font-display text-2xl text-white">{sortLabels[sortBy] || sortLabels.newest}</span>
-            <span>{cars?.length || 0} live vehicles</span>
+          <div className="glass-panel min-w-[240px] rounded-[1.5rem] px-5 py-4 text-sm text-brand-dim">
+            <p className="section-kicker">Sort By</p>
+            <div className="mt-4 flex items-end justify-between gap-4">
+              <span className="font-display text-2xl text-white">{sortLabels[sortBy] || sortLabels.newest}</span>
+              <span className="text-xs uppercase tracking-[0.18em] text-brand-dim">{cars?.length || 0} visible</span>
+            </div>
           </div>
         </section>
 
@@ -128,7 +135,7 @@ export default async function InventoryPage({
                 <h2 className="font-display text-3xl text-white">{cars?.length || 0} Vehicles</h2>
               </div>
               <p className="max-w-md text-sm leading-6 text-brand-dim">
-                Search, body style, fuel type, year, and price stay tied to your live dataset. No seeded inventory has been introduced.
+                Refine by search, body style, fuel type, year, and price to narrow the current collection.
               </p>
             </div>
 
@@ -138,6 +145,37 @@ export default async function InventoryPage({
                   <InventoryVehicleCard key={car.id} car={car} />
                 ))}
               </div>
+            ) : !hasLiveInventory ? (
+              <Card className="rounded-[2rem]">
+                <CardContent className="flex min-h-[460px] flex-col items-center justify-center gap-6 text-center">
+                  <div className="rounded-full border border-accent/18 bg-accent/8 px-5 py-2 text-[0.66rem] font-semibold uppercase tracking-[0.28em] text-accent">
+                    Collection Standby
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="font-display text-4xl text-white">Inventory Publishing Has Not Started Yet</h3>
+                    <p className="max-w-2xl text-sm leading-7 text-brand-dim">
+                      Once vehicles are published, this page will populate automatically with the current collection, detail pages, and inquiry-ready listings.
+                    </p>
+                  </div>
+                  <div className="grid w-full max-w-3xl gap-4 pt-2 md:grid-cols-3">
+                    <div className="glass-panel rounded-[1.4rem] px-5 py-5">
+                      <p className="section-kicker">Listings</p>
+                      <p className="mt-3 text-sm uppercase tracking-[0.18em] text-white">Published vehicles only</p>
+                    </div>
+                    <div className="glass-panel rounded-[1.4rem] px-5 py-5">
+                      <p className="section-kicker">Details</p>
+                      <p className="mt-3 text-sm uppercase tracking-[0.18em] text-white">Image-first presentation</p>
+                    </div>
+                    <div className="glass-panel rounded-[1.4rem] px-5 py-5">
+                      <p className="section-kicker">Inquiries</p>
+                      <p className="mt-3 text-sm uppercase tracking-[0.18em] text-white">Direct buyer outreach</p>
+                    </div>
+                  </div>
+                  <Button variant="accent" size="lg" asChild>
+                    <Link href="/contact">Contact The Dealership</Link>
+                  </Button>
+                </CardContent>
+              </Card>
             ) : (
               <Card className="rounded-[2rem]">
                 <CardContent className="flex min-h-[420px] flex-col items-center justify-center gap-6 text-center">
@@ -147,11 +185,11 @@ export default async function InventoryPage({
                   <div className="space-y-2">
                     <h3 className="font-display text-4xl text-white">No Inventory Match</h3>
                     <p className="max-w-md text-sm leading-7 text-brand-dim">
-                      Nothing in the live inventory currently matches this combination of filters. Reset the rail or widen your price and year range.
+                      Nothing in the current collection matches this selection. Reset the filters or widen your price and year range.
                     </p>
                   </div>
-                  <Button variant="accent" size="lg" asChild>
-                    <a href="/inventory">Clear Filters</a>
+                  <Button variant={hasActiveFilters ? 'accent' : 'outline'} size="lg" asChild>
+                    <Link href="/inventory">Clear Filters</Link>
                   </Button>
                 </CardContent>
               </Card>

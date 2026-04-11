@@ -1,17 +1,35 @@
 import * as React from 'react';
-import Image from 'next/image';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils';
-import logoImage from '@/public/assets/jfautologo-transparent.png';
 
-const logoVariants = cva('relative flex items-center', {
+const logoVariants = cva('inline-flex items-center leading-none', {
   variants: {
     size: {
-      sm: 'h-5 w-auto',
-      md: 'h-6 w-auto',
-      lg: 'h-7 w-auto',
-      xl: 'h-8 w-auto',
+      sm: 'text-lg',
+      md: 'text-xl',
+      lg: 'text-2xl',
+      xl: 'text-[2rem]',
+    },
+    variant: {
+      full: '',
+      wordmark: '',
+      icon: '',
+    },
+  },
+  defaultVariants: {
+    size: 'md',
+    variant: 'full',
+  },
+});
+
+const subtitleVariants = cva('mt-1 uppercase tracking-[0.34em] text-brand-dim', {
+  variants: {
+    size: {
+      sm: 'text-[0.42rem]',
+      md: 'text-[0.46rem]',
+      lg: 'text-[0.5rem]',
+      xl: 'text-[0.56rem]',
     },
   },
   defaultVariants: {
@@ -21,9 +39,7 @@ const logoVariants = cva('relative flex items-center', {
 
 export interface LogoProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'>,
-    VariantProps<typeof logoVariants> {
-  variant?: 'full' | 'icon' | 'wordmark';
-}
+    VariantProps<typeof logoVariants> {}
 
 export function Logo({
   className,
@@ -31,28 +47,28 @@ export function Logo({
   variant = 'full',
   ...props
 }: LogoProps) {
-  const heightMap = {
-    sm: 20,
-    md: 24,
-    lg: 28,
-    xl: 32,
-  };
-
-  const height = heightMap[size || 'md'];
+  if (variant === 'icon') {
+    return (
+      <div
+        className={cn(
+          'flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white shadow-[0_12px_30px_rgba(0,0,0,0.24)]',
+          className,
+        )}
+        {...props}
+      >
+        <span className="font-display text-sm tracking-[0.18em]">JF</span>
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={cn(logoVariants({ size }), variant === 'icon' && 'w-8 overflow-hidden', className)}
-      {...props}
-    >
-      <Image
-        src={logoImage}
-        alt="J&F Auto"
-        height={height}
-        width={height * 3.3}
-        priority
-        className="h-auto w-auto object-contain"
-      />
+    <div className={cn('flex flex-col', className)} {...props}>
+      <span className={cn(logoVariants({ size, variant }), 'font-display uppercase tracking-[0.08em] text-white')}>
+        J&amp;F Auto
+      </span>
+      {variant === 'full' ? (
+        <span className={subtitleVariants({ size })}>Curated Motor Collection</span>
+      ) : null}
     </div>
   );
 }

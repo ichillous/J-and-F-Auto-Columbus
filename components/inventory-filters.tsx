@@ -87,11 +87,11 @@ export function InventoryFilters({
   const FilterPanel = ({ mobile = false }: { mobile?: boolean }) => (
     <div className={mobile ? 'space-y-8' : 'space-y-7'}>
       <div className="space-y-3">
-        <p className="section-kicker">Find vehicle</p>
+        <p className="section-kicker">Quick Search</p>
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-dim" />
           <Input
-            placeholder="Search make or model"
+            placeholder="Search current stock"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
@@ -265,11 +265,11 @@ export function InventoryFilters({
       </div>
 
       <aside className="hidden lg:block">
-        <div className="glass-panel sticky top-28 rounded-[1.75rem] p-6">
+        <div className="glass-panel sticky top-32 rounded-[1.9rem] p-6">
           <div className="mb-7 flex items-center justify-between">
             <div>
               <p className="section-kicker">Filters</p>
-              <h2 className="font-display text-3xl text-white">Inventory Rail</h2>
+              <h2 className="font-display text-3xl text-white">Selection Rail</h2>
             </div>
             {activeFilterCount > 0 ? (
               <button

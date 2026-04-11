@@ -9,17 +9,19 @@ interface PublicFooterProps {
 }
 
 export function PublicFooter({ settings }: PublicFooterProps) {
+  const currentYear = new Date().getFullYear();
+
   return (
-    <footer className="border-t border-white/8 bg-black/30">
-      <div className="shell-container grid gap-10 py-10 lg:grid-cols-[1.2fr,0.8fr,0.8fr]">
-        <div className="space-y-4">
+    <footer className="mt-8 border-t border-white/8 bg-[linear-gradient(180deg,rgba(0,0,0,0.16),rgba(0,0,0,0.42))]">
+      <div className="shell-container grid gap-10 py-12 lg:grid-cols-[1.1fr,0.8fr,0.9fr]">
+        <div className="space-y-5">
           <Logo size="lg" />
           <p className="max-w-md text-sm leading-7 text-brand-dim">
-            {settings?.tagline || 'Premium inventory, transparent guidance, and concierge-level dealership service.'}
+            {settings?.tagline || 'A refined dealership experience built around vetted inventory, clear communication, and private-client attention.'}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">Premium Selection</Badge>
-            <Badge variant="secondary">Detail-Led Buying</Badge>
+            <Badge variant="secondary">Inventory Ready</Badge>
+            <Badge variant="secondary">Concierge Inquiry</Badge>
             <Badge variant="secondary">Columbus, Ohio</Badge>
           </div>
         </div>
@@ -34,13 +36,17 @@ export function PublicFooter({ settings }: PublicFooterProps) {
         </div>
 
         <div className="space-y-3">
-          <p className="section-kicker">Contact</p>
+          <p className="section-kicker">Contact Desk</p>
           <div className="space-y-2 text-sm text-brand-dim">
             {settings?.phone && <p>{settings.phone}</p>}
             {settings?.email && <p>{settings.email}</p>}
             {settings?.address && <p>{settings.address}</p>}
           </div>
         </div>
+      </div>
+      <div className="shell-container flex flex-col gap-2 border-t border-white/8 py-4 text-[0.68rem] uppercase tracking-[0.2em] text-brand-dim sm:flex-row sm:items-center sm:justify-between">
+        <p>&copy; {currentYear} J&amp;F Auto</p>
+        <p>Current inventory and inquiry availability subject to live dealership updates.</p>
       </div>
     </footer>
   );

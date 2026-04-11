@@ -21,6 +21,8 @@ export default async function Home() {
     .order('created_at', { ascending: false })
     .limit(6);
 
+  const liveInventoryCount = featuredCars?.length ?? 0;
+
   return (
     <PublicShell currentPath="/">
       <section className="shell-container grid gap-10 py-12 lg:grid-cols-[1.1fr,0.9fr] lg:items-end lg:py-20">
@@ -29,12 +31,12 @@ export default async function Home() {
             J&amp;F Auto Collection
           </Badge>
           <div className="space-y-4">
-            <p className="section-kicker">Premium Dealership Experience</p>
+            <p className="section-kicker">Columbus Private-Client Inventory</p>
             <h1 className="page-title text-balance">
-              Curated Inventory. Concise Buying. Detail-First Service.
+              Curated Inventory. Precise Guidance. Direct Purchase Flow.
             </h1>
             <p className="page-subtitle">
-              {settings?.tagline || 'High-trust inventory presentation, direct inquiries, and dealership operations built around the vehicles you actually have.'}
+              {settings?.tagline || 'A focused dealership experience for buyers who want clarity, responsive communication, and inventory presented without noise.'}
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -44,6 +46,20 @@ export default async function Home() {
             <Button asChild variant="outline" size="xl">
               <Link href="/contact">Start Inquiry</Link>
             </Button>
+          </div>
+          <div className="grid gap-3 pt-2 sm:grid-cols-3">
+            <div className="glass-panel rounded-[1.35rem] px-4 py-4">
+              <p className="section-kicker">Live Inventory</p>
+              <p className="mt-2 font-display text-3xl text-white">{liveInventoryCount}</p>
+            </div>
+            <div className="glass-panel rounded-[1.35rem] px-4 py-4">
+              <p className="section-kicker">Response Style</p>
+              <p className="mt-2 text-sm uppercase tracking-[0.18em] text-white">Direct &amp; Detailed</p>
+            </div>
+            <div className="glass-panel rounded-[1.35rem] px-4 py-4">
+              <p className="section-kicker">Location</p>
+              <p className="mt-2 text-sm uppercase tracking-[0.18em] text-white">Columbus, Ohio</p>
+            </div>
           </div>
         </div>
 
@@ -77,7 +93,7 @@ export default async function Home() {
               ) : null}
             </div>
             <p className="text-sm leading-7 text-brand-dim">
-              Built around your live dealership data, admin controls, and lead capture flows. The new presentation keeps the same backend and simply elevates the interface.
+              A concise inventory presentation, clear outreach path, and dealership details kept ready for buyers who prefer an informed first conversation.
             </p>
           </CardContent>
         </Card>
@@ -104,12 +120,18 @@ export default async function Home() {
             ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="flex min-h-[280px] flex-col items-center justify-center gap-4 text-center">
-              <h3 className="font-display text-4xl text-white">Inventory Will Appear Here</h3>
-              <p className="max-w-lg text-sm leading-7 text-brand-dim">
-                Once real vehicles are published from the admin panel, they will inherit the same premium presentation across the homepage and inventory pages.
+          <Card className="rounded-[2rem]">
+            <CardContent className="flex min-h-[320px] flex-col items-center justify-center gap-5 text-center">
+              <div className="rounded-full border border-accent/15 bg-accent/8 px-4 py-2 text-[0.66rem] font-semibold uppercase tracking-[0.28em] text-accent">
+                Collection Status
+              </div>
+              <h3 className="font-display text-4xl text-white">Current Collection Preparing For Release</h3>
+              <p className="max-w-xl text-sm leading-7 text-brand-dim">
+                Published vehicles will appear here automatically as they are released into the live inventory.
               </p>
+              <Button asChild variant="outline" size="lg">
+                <Link href="/contact">Request Inventory Assistance</Link>
+              </Button>
             </CardContent>
           </Card>
         )}

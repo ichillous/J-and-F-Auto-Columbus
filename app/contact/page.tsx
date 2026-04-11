@@ -23,11 +23,15 @@ export default async function ContactPage() {
             <p className="section-kicker">Contact</p>
             <h1 className="page-title">Direct Inquiry, Clear Response.</h1>
             <p className="page-subtitle">
-              Use the live inquiry form, call directly, or review current business hours before planning a visit. The presentation is new; the lead pipeline remains the same.
+              Reach the dealership directly, review business hours, or send an inquiry for the vehicle or purchase conversation you want to start.
             </p>
           </div>
           <Card>
             <CardContent className="space-y-4 p-7">
+              <div className="border-b border-white/8 pb-4">
+                <p className="section-kicker">Dealership Desk</p>
+                <h2 className="font-display text-3xl text-white">{settings?.dealership_name || 'J&F Auto'}</h2>
+              </div>
               {settings?.phone ? (
                 <div className="flex items-center gap-3 text-sm text-brand-dim">
                   <Phone className="h-4 w-4 text-accent/80" />
@@ -79,7 +83,7 @@ export default async function ContactPage() {
                 <p className="section-kicker">Lead Capture</p>
                 <h2 className="font-display text-4xl text-white">Open The Inquiry Form</h2>
                 <p className="text-sm leading-7 text-brand-dim">
-                  This still creates a live lead in Supabase. The visual treatment is upgraded, but the underlying dealership workflow is unchanged.
+                  Send a direct request for inventory questions, appointment planning, or a first conversation with the dealership team.
                 </p>
               </div>
 
@@ -90,7 +94,7 @@ export default async function ContactPage() {
               </LeadFormModal>
 
               <div className="rounded-[1.5rem] border border-white/8 bg-white/[0.03] p-5 text-sm leading-7 text-brand-dim">
-                Prefer a direct conversation? Use the details in the contact panel or send the form and manage the response from the admin leads view.
+                Prefer a direct conversation? Use the dealership details here or send the form and wait for a follow-up from the team.
               </div>
             </CardContent>
           </Card>

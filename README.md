@@ -29,7 +29,7 @@ A complete single-dealership car website with admin panel built with Next.js, Su
 - **Authentication**: Supabase Auth
 - **Styling**: Tailwind CSS
 - **UI Components**: shadcn/ui
-- **Deployment**: Vercel
+- **Deployment**: AWS Amplify Hosting
 
 ## Setup Instructions
 
@@ -53,6 +53,7 @@ Create a `.env.local` file in the root directory:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 You can find these values in your [Supabase project's API settings](https://supabase.com/dashboard/project/_/settings/api).
@@ -132,14 +133,37 @@ The app will be available at [http://localhost:3000](http://localhost:3000).
 
 ## Deployment
 
-### Deploy to Vercel
+### Deploy to AWS Amplify Hosting
 
-1. Push your code to GitHub
-2. Import the repository in Vercel
-3. Add environment variables:
+This repository includes a repo-root [`amplify.yml`](./amplify.yml) with the build settings Amplify should use.
+
+1. Push the repository to GitHub.
+2. In AWS Amplify Hosting, create a new app from the GitHub repository.
+3. Use the existing `amplify.yml` when Amplify detects the app.
+4. Add these environment variables in Amplify:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-4. Deploy
+   - `NEXT_PUBLIC_SITE_URL`
+5. Set `NEXT_PUBLIC_SITE_URL` to the full Amplify app URL or your custom production domain.
+6. Deploy the app.
+
+### Supabase Redirect URLs For Amplify
+
+If you use email auth flows or any redirect-based auth callbacks, add your Amplify domain to Supabase Auth URL configuration.
+
+Recommended entries:
+
+```text
+http://localhost:3000/**
+https://your-branch.your-app-id.amplifyapp.com/**
+https://your-production-domain.com/**
+```
+
+### Amplify Compatibility Notes
+
+- AWS Amplify Hosting currently documents support for Next.js 12 through 15 for SSR hosting, so this repo is pinned to Next.js 15 for deployment compatibility.
+- This app uses server rendering, dynamic inventory/admin routes, and Supabase session middleware. Treat it as an SSR deployment, not a static export.
+- If your Supabase storage hostname changes between environments, update `next.config.ts` remote image settings to match.
 
 ## Roles
 
