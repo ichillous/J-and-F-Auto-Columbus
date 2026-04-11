@@ -1,0 +1,107 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "J&F Auto" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img "J&F Auto" [ref=e7]
+        - navigation [ref=e8]:
+          - link "Home" [ref=e9] [cursor=pointer]:
+            - /url: /
+          - link "Inventory" [ref=e10] [cursor=pointer]:
+            - /url: /inventory
+          - link "Contact" [ref=e11] [cursor=pointer]:
+            - /url: /contact
+        - generic [ref=e12]:
+          - button "Location settings" [ref=e13] [cursor=pointer]:
+            - img
+            - generic [ref=e14]: Location settings
+          - link "Inquire" [ref=e15] [cursor=pointer]:
+            - /url: /contact
+    - main [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]:
+            - paragraph [ref=e20]: Current Inventory
+            - heading "Available Machines Ready For Immediate Dispatch." [level=1] [ref=e21]
+            - paragraph [ref=e22]: The current collection is built from the vehicles already in your live inventory. The experience is now premium, but it still reflects only real records in your database.
+          - generic [ref=e23]:
+            - generic [ref=e24]: Sort
+            - generic [ref=e25]: Newest Arrival
+            - generic [ref=e26]: 0 live vehicles
+        - generic [ref=e27]:
+          - complementary [ref=e28]:
+            - generic [ref=e29]:
+              - generic [ref=e30]:
+                - generic [ref=e31]:
+                  - paragraph [ref=e32]: Filters
+                  - heading "Inventory Rail" [level=2] [ref=e33]
+                - img [ref=e34]
+              - generic [ref=e36]:
+                - generic [ref=e37]:
+                  - paragraph [ref=e38]: Find vehicle
+                  - generic [ref=e39]:
+                    - img
+                    - textbox "Search make or model" [ref=e40]
+                - generic [ref=e41]:
+                  - paragraph [ref=e42]: Year Range
+                  - generic [ref=e43]:
+                    - spinbutton [ref=e44]
+                    - spinbutton [ref=e45]
+                - generic [ref=e46]:
+                  - generic [ref=e47]:
+                    - paragraph [ref=e48]: Price Range
+                    - generic [ref=e49]: Up to $100,000
+                  - slider [ref=e50] [cursor=pointer]: "100000"
+                  - generic [ref=e51]:
+                    - spinbutton [ref=e52]
+                    - spinbutton [ref=e53]
+                - generic [ref=e54]:
+                  - paragraph [ref=e55]: Sort By
+                  - combobox [ref=e56]:
+                    - option "Newest Arrival" [selected]
+                    - 'option "Price: Low to High"'
+                    - 'option "Price: High to Low"'
+                - generic [ref=e57]:
+                  - button "Apply Filters" [ref=e58] [cursor=pointer]
+                  - button "Reset" [ref=e59] [cursor=pointer]
+          - generic [ref=e60]:
+            - generic [ref=e61]:
+              - generic [ref=e62]:
+                - paragraph [ref=e63]: Showing
+                - heading "0 Vehicles" [level=2] [ref=e64]
+              - paragraph [ref=e65]: Search, body style, fuel type, year, and price stay tied to your live dataset. No seeded inventory has been introduced.
+            - generic [ref=e67]:
+              - img [ref=e69]
+              - generic [ref=e72]:
+                - heading "No Inventory Match" [level=3] [ref=e73]
+                - paragraph [ref=e74]: Nothing in the live inventory currently matches this combination of filters. Reset the rail or widen your price and year range.
+              - link "Clear Filters" [ref=e75] [cursor=pointer]:
+                - /url: /inventory
+    - contentinfo [ref=e76]:
+      - generic [ref=e77]:
+        - generic [ref=e78]:
+          - img "J&F Auto" [ref=e80]
+          - paragraph [ref=e81]: Your trusted car dealership in Columbus, Ohio
+          - generic [ref=e82]:
+            - generic [ref=e83]: Premium Selection
+            - generic [ref=e84]: Detail-Led Buying
+            - generic [ref=e85]: Columbus, Ohio
+        - generic [ref=e86]:
+          - paragraph [ref=e87]: Navigate
+          - generic [ref=e88]:
+            - link "Home" [ref=e89] [cursor=pointer]:
+              - /url: /
+            - link "Inventory" [ref=e90] [cursor=pointer]:
+              - /url: /inventory
+            - link "Contact" [ref=e91] [cursor=pointer]:
+              - /url: /contact
+        - generic [ref=e92]:
+          - paragraph [ref=e93]: Contact
+          - generic [ref=e94]:
+            - paragraph [ref=e95]: (614) 000-0000
+            - paragraph [ref=e96]: info@jandfauto.com
+            - paragraph [ref=e97]: Columbus, OH
+  - button "Open Next.js Dev Tools" [ref=e103] [cursor=pointer]:
+    - img [ref=e104]
+  - alert [ref=e107]

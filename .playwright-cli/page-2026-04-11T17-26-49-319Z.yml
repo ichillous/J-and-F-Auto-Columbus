@@ -1,0 +1,88 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "J&F Auto" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img "J&F Auto" [ref=e7]
+        - navigation [ref=e8]:
+          - link "Home" [ref=e9] [cursor=pointer]:
+            - /url: /
+          - link "Inventory" [ref=e10] [cursor=pointer]:
+            - /url: /inventory
+          - link "Contact" [ref=e11] [cursor=pointer]:
+            - /url: /contact
+        - generic [ref=e12]:
+          - button "Location settings" [ref=e13] [cursor=pointer]:
+            - img
+            - generic [ref=e14]: Location settings
+          - link "Inquire" [ref=e15] [cursor=pointer]:
+            - /url: /contact
+    - main [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]: J&F Auto Collection
+          - generic [ref=e20]:
+            - paragraph [ref=e21]: Premium Dealership Experience
+            - heading "Curated Inventory. Concise Buying. Detail-First Service." [level=1] [ref=e22]
+            - paragraph [ref=e23]: Your trusted car dealership in Columbus, Ohio
+          - generic [ref=e24]:
+            - link "View Inventory" [ref=e25] [cursor=pointer]:
+              - /url: /inventory
+            - link "Start Inquiry" [ref=e26] [cursor=pointer]:
+              - /url: /contact
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - generic [ref=e30]:
+              - paragraph [ref=e31]: Dealership
+              - heading "J&F Auto" [level=2] [ref=e32]
+            - generic [ref=e33]: Live Inventory
+          - generic [ref=e34]:
+            - generic [ref=e35]:
+              - img [ref=e36]
+              - generic [ref=e38]: (614) 000-0000
+            - generic [ref=e39]:
+              - img [ref=e40]
+              - generic [ref=e43]: info@jandfauto.com
+            - generic [ref=e44]:
+              - img [ref=e45]
+              - generic [ref=e48]: Columbus, OH
+          - paragraph [ref=e49]: Built around your live dealership data, admin controls, and lead capture flows. The new presentation keeps the same backend and simply elevates the interface.
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - paragraph [ref=e53]: Featured Inventory
+            - heading "Current Collection" [level=2] [ref=e54]
+          - link "Browse Full Inventory" [ref=e55] [cursor=pointer]:
+            - /url: /inventory
+            - text: Browse Full Inventory
+            - img
+        - generic [ref=e57]:
+          - heading "Inventory Will Appear Here" [level=3] [ref=e58]
+          - paragraph [ref=e59]: Once real vehicles are published from the admin panel, they will inherit the same premium presentation across the homepage and inventory pages.
+    - contentinfo [ref=e60]:
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - img "J&F Auto" [ref=e64]
+          - paragraph [ref=e65]: Your trusted car dealership in Columbus, Ohio
+          - generic [ref=e66]:
+            - generic [ref=e67]: Premium Selection
+            - generic [ref=e68]: Detail-Led Buying
+            - generic [ref=e69]: Columbus, Ohio
+        - generic [ref=e70]:
+          - paragraph [ref=e71]: Navigate
+          - generic [ref=e72]:
+            - link "Home" [ref=e73] [cursor=pointer]:
+              - /url: /
+            - link "Inventory" [ref=e74] [cursor=pointer]:
+              - /url: /inventory
+            - link "Contact" [ref=e75] [cursor=pointer]:
+              - /url: /contact
+        - generic [ref=e76]:
+          - paragraph [ref=e77]: Contact
+          - generic [ref=e78]:
+            - paragraph [ref=e79]: (614) 000-0000
+            - paragraph [ref=e80]: info@jandfauto.com
+            - paragraph [ref=e81]: Columbus, OH
+  - button "Open Next.js Dev Tools" [ref=e87] [cursor=pointer]:
+    - img [ref=e88]

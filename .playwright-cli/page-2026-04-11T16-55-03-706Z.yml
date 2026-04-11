@@ -1,0 +1,61 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e5]:
+        - link "J&F Auto" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - img "J&F Auto" [ref=e8]
+        - generic [ref=e9]:
+          - link "Home" [ref=e10] [cursor=pointer]:
+            - /url: /
+            - button "Home" [ref=e11]
+          - link "Inventory" [ref=e12] [cursor=pointer]:
+            - /url: /inventory
+            - button "Inventory" [ref=e13]
+          - link "Contact" [ref=e14] [cursor=pointer]:
+            - /url: /contact
+            - button "Contact" [ref=e15]
+        - link "Get Started" [ref=e17] [cursor=pointer]:
+          - /url: /contact
+          - button "Get Started" [ref=e18]
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - heading "Our Inventory" [level=1] [ref=e21]
+        - paragraph [ref=e22]: Browse 0 available vehicles
+      - generic [ref=e24]:
+        - generic [ref=e26]:
+          - img [ref=e27]
+          - heading "Filter & Sort" [level=2] [ref=e29]
+        - generic [ref=e30]:
+          - generic [ref=e31]:
+            - generic [ref=e32]: Search
+            - textbox "Search" [ref=e33]:
+              - /placeholder: Make, model, year...
+          - generic [ref=e34]:
+            - generic [ref=e35]: Min Year
+            - spinbutton "Min Year" [ref=e36]
+          - generic [ref=e37]:
+            - generic [ref=e38]: Max Year
+            - spinbutton "Max Year" [ref=e39]
+          - generic [ref=e40]:
+            - generic [ref=e41]: Min Price
+            - spinbutton "Min Price" [ref=e42]
+          - generic [ref=e43]:
+            - generic [ref=e44]: Max Price
+            - spinbutton "Max Price" [ref=e45]
+          - generic [ref=e46]:
+            - generic [ref=e47]: Sort By
+            - combobox "Sort By" [ref=e48]:
+              - option "Newest First" [selected]
+              - 'option "Price: Low to High"'
+              - 'option "Price: High to Low"'
+        - button "Apply Filters" [ref=e50] [cursor=pointer]
+      - generic [ref=e52]:
+        - img [ref=e55]
+        - heading "No vehicles found" [level=3] [ref=e58]
+        - paragraph [ref=e59]: We couldn't find any vehicles matching your criteria. Try adjusting your filters.
+        - link "Clear Filters" [ref=e60] [cursor=pointer]:
+          - /url: /inventory
+          - button "Clear Filters" [ref=e61]
+  - button "Open Next.js Dev Tools" [ref=e67] [cursor=pointer]:
+    - img [ref=e68]

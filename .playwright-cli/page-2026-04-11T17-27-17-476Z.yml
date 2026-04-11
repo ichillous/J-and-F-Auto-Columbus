@@ -1,0 +1,100 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "J&F Auto" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img "J&F Auto" [ref=e7]
+        - navigation [ref=e8]:
+          - link "Home" [ref=e9] [cursor=pointer]:
+            - /url: /
+          - link "Inventory" [ref=e10] [cursor=pointer]:
+            - /url: /inventory
+          - link "Contact" [ref=e11] [cursor=pointer]:
+            - /url: /contact
+        - generic [ref=e12]:
+          - button "Location settings" [ref=e13] [cursor=pointer]:
+            - img
+            - generic [ref=e14]: Location settings
+          - link "Inquire" [ref=e15] [cursor=pointer]:
+            - /url: /contact
+    - main [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]:
+            - paragraph [ref=e20]: Contact
+            - heading "Direct Inquiry, Clear Response." [level=1] [ref=e21]
+            - paragraph [ref=e22]: Use the live inquiry form, call directly, or review current business hours before planning a visit. The presentation is new; the lead pipeline remains the same.
+          - generic [ref=e24]:
+            - generic [ref=e25]:
+              - img [ref=e26]
+              - generic [ref=e28]: (614) 000-0000
+            - generic [ref=e29]:
+              - img [ref=e30]
+              - generic [ref=e33]: info@jandfauto.com
+            - generic [ref=e34]:
+              - img [ref=e35]
+              - generic [ref=e38]: Columbus, OH
+        - generic [ref=e39]:
+          - generic [ref=e41]:
+            - generic [ref=e42]:
+              - img [ref=e44]
+              - generic [ref=e47]:
+                - paragraph [ref=e48]: Hours
+                - heading "Business Schedule" [level=2] [ref=e49]
+            - generic [ref=e50]:
+              - generic [ref=e51]:
+                - generic [ref=e52]: monday
+                - generic [ref=e53]: 9 AM–7 PM
+              - generic [ref=e54]:
+                - generic [ref=e55]: tuesday
+                - generic [ref=e56]: 9 AM–7 PM
+              - generic [ref=e57]:
+                - generic [ref=e58]: wednesday
+                - generic [ref=e59]: 9 AM–7 PM
+              - generic [ref=e60]:
+                - generic [ref=e61]: thursday
+                - generic [ref=e62]: 9 AM–7 PM
+              - generic [ref=e63]:
+                - generic [ref=e64]: friday
+                - generic [ref=e65]: 9 AM–7 PM
+              - generic [ref=e66]:
+                - generic [ref=e67]: saturday
+                - generic [ref=e68]: 10 AM–5 PM
+              - generic [ref=e69]:
+                - generic [ref=e70]: sunday
+                - generic [ref=e71]: Closed
+          - generic [ref=e73]:
+            - generic [ref=e74]:
+              - paragraph [ref=e75]: Lead Capture
+              - heading "Open The Inquiry Form" [level=2] [ref=e76]
+              - paragraph [ref=e77]: This still creates a live lead in Supabase. The visual treatment is upgraded, but the underlying dealership workflow is unchanged.
+            - button "Send Contact Request" [ref=e79] [cursor=pointer]
+            - generic [ref=e80]: Prefer a direct conversation? Use the details in the contact panel or send the form and manage the response from the admin leads view.
+    - contentinfo [ref=e81]:
+      - generic [ref=e82]:
+        - generic [ref=e83]:
+          - img "J&F Auto" [ref=e85]
+          - paragraph [ref=e86]: Your trusted car dealership in Columbus, Ohio
+          - generic [ref=e87]:
+            - generic [ref=e88]: Premium Selection
+            - generic [ref=e89]: Detail-Led Buying
+            - generic [ref=e90]: Columbus, Ohio
+        - generic [ref=e91]:
+          - paragraph [ref=e92]: Navigate
+          - generic [ref=e93]:
+            - link "Home" [ref=e94] [cursor=pointer]:
+              - /url: /
+            - link "Inventory" [ref=e95] [cursor=pointer]:
+              - /url: /inventory
+            - link "Contact" [ref=e96] [cursor=pointer]:
+              - /url: /contact
+        - generic [ref=e97]:
+          - paragraph [ref=e98]: Contact
+          - generic [ref=e99]:
+            - paragraph [ref=e100]: (614) 000-0000
+            - paragraph [ref=e101]: info@jandfauto.com
+            - paragraph [ref=e102]: Columbus, OH
+  - button "Open Next.js Dev Tools" [ref=e108] [cursor=pointer]:
+    - img [ref=e109]
+  - alert [ref=e112]
