@@ -9,7 +9,7 @@ import { PublicShell } from '@/components/public-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { createClient } from '@/lib/supabase/server';
+import { getCarBySlug, getSettings } from '@/lib/data';
 
 export default async function CarDetailPage({
   params,
@@ -17,21 +17,14 @@ export default async function CarDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   unstable_noStore();
-  const supabase = await createClient();
   const { slug } = await params;
+  const [car, settings] = await Promise.all([getCarBySlug(slug), getSettings()]);
 
-  const { data: car } = await supabase
-    .from('cars')
-    .select('*')
-    .eq('slug', slug)
-    .eq('status', 'published')
-    .single();
-
-  if (!car) {
+  if (!car || car.status !== 'published') {
     notFound();
   }
 
-  const gallery = car.gallery && Array.isArray(car.gallery) ? car.gallery : [];
+  const gallery = Array.isArray(car.gallery) ? car.gallery : [];
   const allImages = car.hero_image_url ? [car.hero_image_url, ...gallery] : gallery;
 
   const specCards = [
@@ -46,7 +39,7 @@ export default async function CarDetailPage({
   ].filter(Boolean) as Array<{ label: string; value: string; icon: typeof Calendar }>;
 
   return (
-    <PublicShell currentPath="/inventory">
+    <PublicShell currentPath="/inventory" settings={settings}>
       <div className="shell-container space-y-8 py-10 sm:py-12 lg:py-16">
         <Button asChild variant="ghost" className="px-0 text-brand-silver hover:bg-transparent hover:text-white">
           <Link href="/inventory">

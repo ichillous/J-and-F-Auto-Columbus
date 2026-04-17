@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Car, LayoutDashboard, Mail, Menu, Settings, User } from 'lucide-react';
 
-import { getCurrentProfile, getCurrentUser } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 
 import { ClientOnly } from '@/components/client-only';
 import { LogoutButton } from '@/components/logout-button';
@@ -21,14 +21,13 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getCurrentUser();
-  const profile = user ? await getCurrentProfile() : null;
+  const session = await getSession();
 
-  if (!user || !profile) {
+  if (!session) {
     return <>{children}</>;
   }
 
-  const currentRole = profile.role === 'admin' ? 'accent' : 'secondary';
+  const roleVariant = session.role === 'admin' ? 'accent' : 'secondary';
 
   return (
     <div className="page-shell min-h-screen">
@@ -51,7 +50,7 @@ export default async function AdminLayout({
                 </Link>
               </Button>
             ))}
-            {profile.role === 'admin' ? (
+            {session.role === 'admin' ? (
               <Button asChild variant="ghost">
                 <Link href="/admin/settings">
                   <Settings className="h-4 w-4" />
@@ -69,9 +68,9 @@ export default async function AdminLayout({
 
           <div className="hidden items-center gap-3 xl:flex">
             <div className="text-right">
-              <p className="text-sm font-semibold text-white">{profile.full_name || user.email}</p>
-              <Badge variant={currentRole} size="sm" className="capitalize">
-                {profile.role}
+              <p className="text-sm font-semibold text-white">{session.fullName || session.email}</p>
+              <Badge variant={roleVariant} size="sm" className="capitalize">
+                {session.role}
               </Badge>
             </div>
             <LogoutButton />
@@ -97,9 +96,9 @@ export default async function AdminLayout({
                   <SheetTitle>Admin Console</SheetTitle>
                 </SheetHeader>
                 <div className="mb-6 rounded-[1.5rem] border border-white/8 bg-white/[0.03] p-5">
-                  <p className="text-sm font-semibold text-white">{profile.full_name || user.email}</p>
-                  <Badge variant={currentRole} size="sm" className="mt-2 capitalize">
-                    {profile.role}
+                  <p className="text-sm font-semibold text-white">{session.fullName || session.email}</p>
+                  <Badge variant={roleVariant} size="sm" className="mt-2 capitalize">
+                    {session.role}
                   </Badge>
                 </div>
                 <div className="flex flex-col gap-3">
@@ -111,7 +110,7 @@ export default async function AdminLayout({
                       </Link>
                     </Button>
                   ))}
-                  {profile.role === 'admin' ? (
+                  {session.role === 'admin' ? (
                     <Button asChild variant="secondary" className="justify-start rounded-2xl px-5" size="lg">
                       <Link href="/admin/settings">
                         <Settings className="h-4 w-4" />

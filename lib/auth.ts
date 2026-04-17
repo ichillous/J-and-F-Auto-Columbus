@@ -1,49 +1,35 @@
-import { createClient } from '@/lib/supabase/server';
+import { cache } from 'react';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import type { Profile, ProfileRole } from '@/lib/types';
 
-export async function getCurrentUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
+import { verifySessionToken, type AdminSession } from '@/lib/aws/cognito';
+import type { ProfileRole } from '@/lib/types';
+
+export const SESSION_COOKIE = 'jfauto_session';
+
+export const getSession = cache(async (): Promise<AdminSession | null> => {
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  return verifySessionToken(token);
+});
+
+export async function requireAuth(): Promise<AdminSession> {
+  const session = await getSession();
+  if (!session) redirect('/admin/login');
+  return session;
 }
 
-export async function getCurrentProfile(): Promise<Profile | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) return null;
-  
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-  
-  return profile;
+export async function requireRole(allowed: ProfileRole[]): Promise<AdminSession> {
+  const session = await getSession();
+  if (!session || !allowed.includes(session.role)) redirect('/admin/login');
+  return session;
 }
 
-export async function requireAuth() {
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect('/admin/login');
-  }
-  return user;
-}
-
-export async function requireRole(allowedRoles: ProfileRole[]) {
-  const profile = await getCurrentProfile();
-  if (!profile || !allowedRoles.includes(profile.role)) {
-    redirect('/admin/login');
-  }
-  return profile;
-}
-
-export async function requireAdminOrStaff() {
-  return requireRole(['admin', 'staff']);
-}
-
-export async function requireAdmin() {
+export async function requireAdmin(): Promise<AdminSession> {
   return requireRole(['admin']);
 }
 
+export async function requireAdminOrStaff(): Promise<AdminSession> {
+  return requireRole(['admin', 'staff']);
+}

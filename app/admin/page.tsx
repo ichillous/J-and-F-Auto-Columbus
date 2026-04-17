@@ -1,36 +1,30 @@
 import Link from 'next/link';
 import { ArrowRight, Car, CheckCircle, Eye, Mail, Plus, TrendingUp } from 'lucide-react';
-import { unstable_noStore } from 'next/cache';
 
 import { requireRole } from '@/lib/auth';
-import { createClient } from '@/lib/supabase/server';
+import { listAllCars, listLeads } from '@/lib/data';
 
 import { AdminPageHeader } from '@/components/admin-page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminDashboard() {
   await requireRole(['admin', 'staff', 'readonly']);
-  unstable_noStore();
-  const supabase = await createClient();
 
-  const { count: totalCars } = await supabase.from('cars').select('*', { count: 'exact', head: true });
-  const { count: publishedCars } = await supabase.from('cars').select('*', { count: 'exact', head: true }).eq('status', 'published');
-  const { count: soldCars } = await supabase.from('cars').select('*', { count: 'exact', head: true }).eq('status', 'sold');
-  const { count: newLeads } = await supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'new');
+  const [cars, leads] = await Promise.all([listAllCars(), listLeads()]);
 
-  const { data: recentLeads } = await supabase
-    .from('leads')
-    .select('*, cars ( title )')
-    .order('created_at', { ascending: false })
-    .limit(5);
+  const totalCars = cars.length;
+  const publishedCars = cars.filter((c) => c.status === 'published').length;
+  const soldCars = cars.filter((c) => c.status === 'sold').length;
+  const newLeads = leads.filter((l) => l.status === 'new').length;
 
-  const { data: recentCars } = await supabase
-    .from('cars')
-    .select('*')
-    .order('updated_at', { ascending: false })
-    .limit(5);
+  const recentLeads = leads.slice(0, 5);
+  const recentCars = [...cars]
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    .slice(0, 5);
 
   return (
     <div className="space-y-8">
@@ -42,10 +36,10 @@ export default async function AdminDashboard() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: 'Total Cars', value: totalCars || 0, icon: Car },
-          { label: 'Published', value: publishedCars || 0, icon: Eye },
-          { label: 'Sold Cars', value: soldCars || 0, icon: CheckCircle },
-          { label: 'New Leads', value: newLeads || 0, icon: Mail },
+          { label: 'Total Cars', value: totalCars, icon: Car },
+          { label: 'Published', value: publishedCars, icon: Eye },
+          { label: 'Sold Cars', value: soldCars, icon: CheckCircle },
+          { label: 'New Leads', value: newLeads, icon: Mail },
         ].map(({ label, value, icon: Icon }) => (
           <Card key={label}>
             <CardContent className="flex items-center justify-between p-6">
@@ -101,7 +95,7 @@ export default async function AdminDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {recentLeads && recentLeads.length > 0 ? (
+            {recentLeads.length > 0 ? (
               recentLeads.map((lead) => (
                 <Link
                   key={lead.id}
@@ -145,7 +139,7 @@ export default async function AdminDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {recentCars && recentCars.length > 0 ? (
+            {recentCars.length > 0 ? (
               recentCars.map((car) => (
                 <Link
                   key={car.id}

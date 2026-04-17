@@ -1,11 +1,13 @@
-import { createClient } from '@/lib/supabase/server';
-import { requireAdminOrStaff } from '@/lib/auth';
-import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { CarsTable } from '@/components/admin/cars-table';
-import { unstable_noStore } from 'next/cache';
 import { Plus, Car } from 'lucide-react';
+
+import { requireAdminOrStaff } from '@/lib/auth';
+import { listAllCars } from '@/lib/data';
 import { AdminPageHeader } from '@/components/admin-page-header';
+import { CarsTable } from '@/components/admin/cars-table';
+import { Button } from '@/components/ui/button';
+
+export const dynamic = 'force-dynamic';
 
 interface SearchParams {
   status?: string;
@@ -19,30 +21,29 @@ export default async function AdminCarsPage({
   searchParams: Promise<SearchParams>;
 }) {
   await requireAdminOrStaff();
-  unstable_noStore();
-  const supabase = await createClient();
-  const resolvedSearchParams = await searchParams;
+  const resolved = await searchParams;
 
-  let query = supabase.from('cars').select('*');
+  let cars = await listAllCars();
 
-  if (resolvedSearchParams.status) {
-    query = query.eq('status', resolvedSearchParams.status);
+  if (resolved.status) {
+    cars = cars.filter((c) => c.status === resolved.status);
   }
-
-  if (resolvedSearchParams.search) {
-    const searchTerm = resolvedSearchParams.search.toLowerCase();
-    query = query.or(`title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%`);
+  if (resolved.search) {
+    const term = resolved.search.toLowerCase();
+    cars = cars.filter(
+      (c) =>
+        c.title.toLowerCase().includes(term) ||
+        c.make.toLowerCase().includes(term) ||
+        c.model.toLowerCase().includes(term),
+    );
   }
-
-  query = query.order('updated_at', { ascending: false });
-
-  const { data: cars } = await query;
+  cars.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="Cars"
-        description={`Manage your live vehicle inventory (${cars?.length || 0} total).`}
+        description={`Manage your live vehicle inventory (${cars.length} total).`}
         icon={<Car className="h-8 w-8 text-accent" />}
         actions={(
           <Button asChild variant="accent" size="lg">
@@ -54,7 +55,7 @@ export default async function AdminCarsPage({
         )}
       />
 
-      <CarsTable cars={cars || []} initialSearchParams={resolvedSearchParams} />
+      <CarsTable cars={cars} initialSearchParams={resolved} />
     </div>
   );
 }

@@ -784,3 +784,148 @@ Every source file has now been reviewed:
 ---
 
 *Iteration 8 appended 2026-04-15. B9 corrected (images exist but are template images). L15 retracted. New findings: 1 high (H20), 2 medium (M33-M34), 2 low (L27-L28). Running totals: 9 [BLOCK] | 20 [HIGH] | 34 [MED] | 27 [LOW] = 90 findings (minus L15 retracted = 89 active).*
+
+---
+
+## Iteration 9 — final pass: SQL schema, HTTP headers, dead code, injection surface
+
+### H21. (NEW) No security headers configured anywhere
+**Files:** `next.config.ts`, `amplify.yml`, middleware
+
+Live HTTP probe of the production-style build returns no `Content-Security-Policy`, no `X-Frame-Options`, no `Strict-Transport-Security`, no `X-Content-Type-Options`, no `Referrer-Policy`, and no `Permissions-Policy`. The `next.config.ts` has no `headers()` function. `amplify.yml` has no custom headers block. Middleware does not set any.
+
+Without `X-Frame-Options: DENY` (or CSP `frame-ancestors`), the admin panel can be iframed for clickjacking. Without HSTS, first-load downgrade attacks are possible. Without `X-Content-Type-Options: nosniff`, MIME sniffing on the public uploads bucket could let an attacker upload a script disguised as an image.
+
+**Fix:** Add a `headers()` function to `next.config.ts` setting at minimum: `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`, `X-Frame-Options: DENY` on `/admin/*`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`. CSP is more involved (Tailwind needs `'unsafe-inline'` for styles unless you switch to nonce-based) — at least set a report-only CSP.
+
+---
+
+### H22. (NEW) Public lead INSERT policy is wide open with no rate limit and no validation
+**File:** `supabase/migrations/001_initial_schema.sql:183-186`
+
+```sql
+create policy "Anyone can submit leads"
+  on public.leads for insert
+  to anon
+  with check (true);
+```
+
+`with check (true)` means anyone can POST any payload. There is no:
+- Rate limit (any bot can flood the table)
+- Required-field check at the DB level (only `full_name`/`phone` are NOT NULL — but no length/format validation)
+- Honeypot or CAPTCHA (confirmed via live browser test of `/contact`)
+- IP capture (no `created_ip` column to throttle on later)
+
+A scraper finding the public anon key in the JS bundle can fill the leads table indefinitely. Combined with M11 (no email notification on new lead), the table can be poisoned without anyone noticing.
+
+**Fix:** Add a Postgres function `public.submit_lead(...)` with `SECURITY DEFINER` that validates phone format, rejects payloads over N chars, and records the source IP. Revoke direct INSERT from `anon`. On the Amplify migration, replace this with an API Gateway + Lambda that runs reCAPTCHA verification before writing to DynamoDB.
+
+---
+
+### M35. (NEW) DB schema defaults `cars.status` to `'published'` — root cause of H18
+**File:** `supabase/migrations/001_initial_schema.sql:44`
+
+```sql
+status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('draft','published','sold')),
+```
+
+H18 fixed the symptom in `components/admin/car-form.tsx` (form defaulted new cars to `published`). The DB still has the same default, so any insert path that omits `status` will publish immediately. If a future bulk-import tool or migration script forgets to set status, every imported car goes live.
+
+**Fix:** `ALTER TABLE public.cars ALTER COLUMN status SET DEFAULT 'draft';` in a follow-up migration. Defense-in-depth with the H18 form-level fix.
+
+---
+
+### M36. (NEW) `site_settings` is a singleton but the schema doesn't enforce it
+**File:** `supabase/migrations/001_initial_schema.sql:67-86`
+
+The `site_settings` table is treated as a singleton by `lib/data.ts` (it always reads `.limit(1).single()`), but the schema allows multiple rows. There is no `CHECK` constraint, no unique partial index, nothing preventing a second row. If an admin accidentally inserts a second settings row, `getSiteSettings()` will silently return whichever one Postgres orders first.
+
+**Fix:** Add `CONSTRAINT single_settings CHECK (id = 1)` and seed with `id = 1`, or use a partial unique index on a constant column. On Amplify, store settings as a single S3 JSON file or a single-PK DynamoDB item.
+
+---
+
+### L29. (NEW) `X-Powered-By: Next.js` header leaks framework version
+**File:** `next.config.ts`
+
+Default Next.js sends `X-Powered-By: Next.js`. This tells attackers exactly what to scan for. Disabling is one line.
+
+**Fix:** Add `poweredByHeader: false` to `next.config.ts`. Trivial.
+
+---
+
+### L30. (NEW) Tailwind config scans non-existent `pages/` and `src/` directories
+**File:** `tailwind.config.ts:7,10`
+
+```ts
+content: [
+  './pages/**/*.{js,ts,jsx,tsx,mdx}',
+  './components/**/*.{js,ts,jsx,tsx,mdx}',
+  './app/**/*.{js,ts,jsx,tsx,mdx}',
+  './src/**/*.{js,ts,jsx,tsx,mdx}',
+],
+```
+
+Neither `pages/` nor `src/` exists in this project (App Router only). Globbing them on every build wastes build time and is a footgun if someone later adds a `src/legacy/` for unrelated reasons.
+
+**Fix:** Delete the two unused glob lines.
+
+---
+
+### L31. (NEW) `components/ui/form-field.tsx` is well-built but never imported
+**File:** `components/ui/form-field.tsx`
+
+A genuinely good accessible form component — proper `aria-invalid`, `aria-describedby` wired to the error node, `role="alert"`, label association via `htmlFor`. Grep for imports returns zero. Meanwhile the actual forms (`car-form.tsx`, `settings-form.tsx`, `lead-form-modal.tsx`, `profile-form.tsx`, contact form) all hand-roll inputs without these affordances — see M19 (light-mode error banner), H8 (modal a11y), and the broader accessibility gap.
+
+**Fix:** Either delete the file, or refactor at least one form to use it as a proof-of-pattern, then migrate the others. Current state is dead code that ironically would have prevented several other findings.
+
+---
+
+### L32. (NEW) `components/ui/skeleton.tsx` and `components/ui/checkbox.tsx` are dead
+**Files:** `components/ui/skeleton.tsx`, `components/ui/checkbox.tsx`
+
+Standard shadcn primitives, not imported anywhere in the project. `@radix-ui/react-checkbox` is in `package.json` solely for this unused component (~30 kB transitive). Skeleton would actually be useful (loading states are bare `null` in a few places) but no one wired it up.
+
+**Fix:** Either use them (skeleton for inventory loading state) or delete them and drop `@radix-ui/react-checkbox` from `package.json`.
+
+---
+
+### Injection surface review — no findings
+Grep confirms zero raw-HTML insertion sinks. No props that bypass JSX escaping, no `innerHTML` writes in client code, no DOM-stream APIs. All interpolation goes through React's default escaping. Combined with the fact that no user-supplied content is ever rendered as Markdown or HTML, the script-injection attack surface from the application code is closed.
+
+The remaining script-injection concerns are:
+1. **B7** — image URLs are rendered directly without origin validation (a malicious image URL can't run JS but can leak referrer/load tracking pixels)
+2. **H6** — Supabase storage bucket is public-write effectively, so an attacker who finds the anon key can upload a `.svg` containing `<script>` and reference it from a lead message — caught by `next/image` rasterization unless you switch to a raw `<img>`
+
+---
+
+### Iteration 9 totals
+
+New findings: 2 high (H21, H22), 2 medium (M35, M36), 4 low (L29-L32).
+
+**Final running totals: 9 [BLOCK] | 22 [HIGH] | 36 [MED] | 31 [LOW] = 98 findings (minus L15 retracted = 97 active).**
+
+---
+
+## AUDIT COMPLETE
+
+This is the final iteration. Every source file, every config file, every migration, every public route, the live browser surface (desktop + mobile), and the HTTP response headers have been reviewed. Further passes would surface diminishing-return nits, not new categories of issue.
+
+### What's in this document
+- **97 active findings** organized by severity (BLOCK / HIGH / MED / LOW)
+- Each finding includes file path, line number, root cause, and a fix recommendation
+- Findings are tagged for **Amplify-migration relevance** where the fix changes based on whether the team patches Supabase first or migrates straight to AWS
+
+### Recommended fix order
+1. **Infra-agnostic quick wins** (do these regardless of migration timing): B9, H17, H18, H20, L29, H21, M35
+2. **B3 cruft removal** — delete `app/protected`, `app/auth/sign-up*`, `app/auth/forgot-password`, `app/auth/update-password`, `app/auth/confirm`, `app/auth/error`, `app/auth/sign-up-success`, `components/sign-up-form.tsx`, `components/forgot-password-form.tsx`, `components/update-password-form.tsx`, `components/deploy-button.tsx`, `components/env-var-warning.tsx`, `components/hero.tsx`, `components/next-logo.tsx`, `components/supabase-logo.tsx`, `components/tutorial/`, `lib/utils.ts:hasEnvVars`
+3. **UI bugs that survive the migration** — B7, B8, H8, M19-M28, M30, M32
+4. **Amplify migration plan** — replace Supabase Auth with Cognito, replace `cars`/`leads`/`profiles`/`site_settings` tables with DynamoDB or Aurora Serverless, replace storage bucket with S3 + CloudFront, replace middleware with Lambda@Edge JWT verifier (target under 10 kB), drop `@supabase/*` packages entirely
+
+### What this audit did NOT do
+- No code was modified during the audit (read-only)
+- No automated penetration testing or fuzzing
+- No load testing or performance profiling beyond `next build` output
+- No third-party dependency CVE scan (run `npm audit` separately)
+- No legal/privacy review of the lead-capture flow
+
+*Iteration 9 appended 2026-04-15. Audit closed.*

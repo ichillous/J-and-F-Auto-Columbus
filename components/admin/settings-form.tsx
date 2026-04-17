@@ -1,14 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Spinner } from '@/components/ui/spinner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { createClient } from '@/lib/supabase/client';
+import { useState, useTransition } from 'react';
 import {
   Building2,
   Phone,
@@ -18,74 +10,54 @@ import {
   FileText,
   Palette,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
+
+import { saveSettingsAction } from '@/lib/actions/settings';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Spinner } from '@/components/ui/spinner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Settings } from '@/lib/types';
 
 interface SettingsFormProps {
-  settings: Settings;
+  settings: Settings | null;
 }
 
-type HoursField =
-  | 'hours_monday'
-  | 'hours_tuesday'
-  | 'hours_wednesday'
-  | 'hours_thursday'
-  | 'hours_friday'
-  | 'hours_saturday'
-  | 'hours_sunday';
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+type Day = (typeof DAYS)[number];
 
 export function SettingsForm({ settings }: SettingsFormProps) {
-  const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const initialHours = (settings?.hours_json ?? {}) as Record<string, string>;
   const [formData, setFormData] = useState({
-    dealership_name: settings.dealership_name || '',
-    logo_url: settings.logo_url || '',
-    primary_color: settings.primary_color || '#000000',
-    secondary_color: settings.secondary_color || '#666666',
-    tagline: settings.tagline || '',
-    phone: settings.phone || '',
-    email: settings.email || '',
-    address: settings.address || '',
-    about_text: settings.about_text || '',
-    hours_monday: (settings.hours_json as Record<string, string>)?.monday || '',
-    hours_tuesday: (settings.hours_json as Record<string, string>)?.tuesday || '',
-    hours_wednesday: (settings.hours_json as Record<string, string>)?.wednesday || '',
-    hours_thursday: (settings.hours_json as Record<string, string>)?.thursday || '',
-    hours_friday: (settings.hours_json as Record<string, string>)?.friday || '',
-    hours_saturday: (settings.hours_json as Record<string, string>)?.saturday || '',
-    hours_sunday: (settings.hours_json as Record<string, string>)?.sunday || '',
+    dealership_name: settings?.dealership_name ?? '',
+    logo_url: settings?.logo_url ?? '',
+    primary_color: settings?.primary_color ?? '#000000',
+    secondary_color: settings?.secondary_color ?? '#666666',
+    tagline: settings?.tagline ?? '',
+    phone: settings?.phone ?? '',
+    email: settings?.email ?? '',
+    address: settings?.address ?? '',
+    about_text: settings?.about_text ?? '',
+    hours: DAYS.reduce(
+      (acc, day) => ({ ...acc, [day]: initialHours[day] ?? '' }),
+      {} as Record<Day, string>,
+    ),
   });
 
-  const updateHours = (field: HoursField, value: string) => {
-    setFormData({ ...formData, [field]: value });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError(null);
     setSuccess(false);
-
-    try {
-      const supabase = createClient();
-
-      const hours_json = {
-        monday: formData.hours_monday,
-        tuesday: formData.hours_tuesday,
-        wednesday: formData.hours_wednesday,
-        thursday: formData.hours_thursday,
-        friday: formData.hours_friday,
-        saturday: formData.hours_saturday,
-        sunday: formData.hours_sunday,
-      };
-
-      const { error: updateError } = await supabase
-        .from('settings')
-        .update({
+    startTransition(async () => {
+      try {
+        await saveSettingsAction({
           dealership_name: formData.dealership_name,
           logo_url: formData.logo_url || null,
           primary_color: formData.primary_color,
@@ -95,20 +67,14 @@ export function SettingsForm({ settings }: SettingsFormProps) {
           email: formData.email || null,
           address: formData.address || null,
           about_text: formData.about_text || null,
-          hours_json,
-        })
-        .eq('id', settings.id);
-
-      if (updateError) throw updateError;
-
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setIsSubmitting(false);
-    }
+          hours_json: formData.hours,
+        });
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      }
+    });
   };
 
   return (
@@ -127,9 +93,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
               id="dealership_name"
               required
               value={formData.dealership_name}
-              onChange={(e) =>
-                setFormData({ ...formData, dealership_name: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, dealership_name: e.target.value })}
             />
           </div>
 
@@ -138,9 +102,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
             <Input
               id="tagline"
               value={formData.tagline}
-              onChange={(e) =>
-                setFormData({ ...formData, tagline: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, tagline: e.target.value })}
             />
           </div>
 
@@ -150,9 +112,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
               id="logo_url"
               type="url"
               value={formData.logo_url}
-              onChange={(e) =>
-                setFormData({ ...formData, logo_url: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
             />
           </div>
 
@@ -166,9 +126,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
                 id="primary_color"
                 type="color"
                 value={formData.primary_color}
-                onChange={(e) =>
-                  setFormData({ ...formData, primary_color: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, primary_color: e.target.value })}
               />
             </div>
             <div>
@@ -180,9 +138,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
                 id="secondary_color"
                 type="color"
                 value={formData.secondary_color}
-                onChange={(e) =>
-                  setFormData({ ...formData, secondary_color: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, secondary_color: e.target.value })}
               />
             </div>
           </div>
@@ -206,9 +162,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
               id="phone"
               type="tel"
               value={formData.phone}
-              onChange={(e) =>
-                setFormData({ ...formData, phone: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             />
           </div>
 
@@ -221,9 +175,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
               id="email"
               type="email"
               value={formData.email}
-              onChange={(e) =>
-                setFormData({ ...formData, email: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
           </div>
 
@@ -236,9 +188,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
               id="address"
               className="min-h-[80px]"
               value={formData.address}
-              onChange={(e) =>
-                setFormData({ ...formData, address: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
             />
           </div>
         </CardContent>
@@ -253,24 +203,16 @@ export function SettingsForm({ settings }: SettingsFormProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              'monday',
-              'tuesday',
-              'wednesday',
-              'thursday',
-              'friday',
-              'saturday',
-              'sunday',
-            ].map((day) => (
+            {DAYS.map((day) => (
               <div key={day}>
-                <Label htmlFor={`hours_${day}`} className="capitalize">
-                  {day}
-                </Label>
+                <Label htmlFor={`hours_${day}`} className="capitalize">{day}</Label>
                 <Input
                   id={`hours_${day}`}
                   placeholder="e.g., 9 AM - 6 PM or Closed"
-                  value={formData[`hours_${day}` as keyof typeof formData]}
-                  onChange={(e) => updateHours(`hours_${day}` as HoursField, e.target.value)}
+                  value={formData.hours[day]}
+                  onChange={(e) =>
+                    setFormData({ ...formData, hours: { ...formData.hours, [day]: e.target.value } })
+                  }
                 />
               </div>
             ))}
@@ -291,9 +233,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
             className="min-h-[200px]"
             placeholder="Tell customers about your dealership..."
             value={formData.about_text}
-            onChange={(e) =>
-              setFormData({ ...formData, about_text: e.target.value })
-            }
+            onChange={(e) => setFormData({ ...formData, about_text: e.target.value })}
           />
         </CardContent>
       </Card>
@@ -321,8 +261,8 @@ export function SettingsForm({ settings }: SettingsFormProps) {
       )}
 
       <div className="flex gap-3">
-        <Button type="submit" disabled={isSubmitting} variant="accent" size="lg">
-          {isSubmitting ? (
+        <Button type="submit" disabled={isPending} variant="accent" size="lg">
+          {isPending ? (
             <>
               <Spinner size="sm" className="mr-2" />
               Saving...

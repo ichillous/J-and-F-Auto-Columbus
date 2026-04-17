@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, CheckCircle2, X } from 'lucide-react';
 
-import { createClient } from '@/lib/supabase/client';
+import { submitLeadAction } from '@/lib/actions/leads';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,12 +18,7 @@ interface LeadFormModalProps {
   children: React.ReactNode;
 }
 
-export function LeadFormModal({
-  carId,
-  carTitle,
-  type,
-  children,
-}: LeadFormModalProps) {
+export function LeadFormModal({ carId, carTitle, type, children }: LeadFormModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,33 +39,22 @@ export function LeadFormModal({
     setError(null);
 
     try {
-      const supabase = createClient();
-
-      const { error: insertError } = await supabase.from('leads').insert({
-        car_id: carId || null,
+      await submitLeadAction({
+        car_id: carId ?? null,
         name: formData.name,
         email: formData.email,
-        phone: formData.phone || null,
+        phone: formData.phone || undefined,
+        message: formData.message || undefined,
+        preferred_datetime: formData.preferred_datetime || undefined,
         type,
-        message: formData.message || null,
-        preferred_datetime: formData.preferred_datetime || null,
-        status: 'new',
         source_page: carId ? 'car_detail' : 'contact',
       });
-
-      if (insertError) throw insertError;
 
       setSuccess(true);
       setTimeout(() => {
         setIsOpen(false);
         setSuccess(false);
-        setFormData({
-          name: '',
-          email: '',
-          phone: '',
-          message: '',
-          preferred_datetime: '',
-        });
+        setFormData({ name: '', email: '', phone: '', message: '', preferred_datetime: '' });
         router.refresh();
       }, 1800);
     } catch (err) {
@@ -95,6 +79,8 @@ export function LeadFormModal({
       {isOpen ? (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center bg-[#020406]/78 px-4 py-6 backdrop-blur-md"
+          role="dialog"
+          aria-modal="true"
           onClick={() => setIsOpen(false)}
         >
           <Card className="w-full max-w-xl rounded-[1.75rem]" onClick={(e) => e.stopPropagation()}>
@@ -119,7 +105,7 @@ export function LeadFormModal({
                   <div className="space-y-2">
                     <p className="font-display text-3xl text-white">Inquiry Sent</p>
                     <p className="text-sm leading-7 text-brand-dim">
-                      Your lead was submitted to the live CRM flow successfully.
+                      Your lead was submitted successfully.
                     </p>
                   </div>
                 </div>

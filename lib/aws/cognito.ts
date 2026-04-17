@@ -1,0 +1,115 @@
+import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import {
+  AdminInitiateAuthCommand,
+  AdminRespondToAuthChallengeCommand,
+  AdminUpdateUserAttributesCommand,
+} from '@aws-sdk/client-cognito-identity-provider';
+
+import { cognito } from './clients';
+import { awsEnv } from './env';
+import type { ProfileRole } from '@/lib/types';
+
+let _verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
+function verifier() {
+  if (_verifier) return _verifier;
+  _verifier = CognitoJwtVerifier.create({
+    userPoolId: awsEnv.cognitoUserPoolId(),
+    tokenUse: 'id',
+    clientId: awsEnv.cognitoClientId(),
+  });
+  return _verifier;
+}
+
+export interface AdminSession {
+  sub: string;
+  email: string;
+  fullName: string | null;
+  role: ProfileRole;
+}
+
+const VALID_ROLES: ProfileRole[] = ['admin', 'staff', 'readonly'];
+
+function coerceRole(raw: unknown): ProfileRole {
+  if (typeof raw === 'string' && (VALID_ROLES as string[]).includes(raw)) {
+    return raw as ProfileRole;
+  }
+  return 'readonly';
+}
+
+export async function verifySessionToken(idToken: string): Promise<AdminSession | null> {
+  try {
+    const payload = await verifier().verify(idToken);
+    return {
+      sub: String(payload.sub),
+      email: String(payload.email ?? ''),
+      fullName: typeof payload.name === 'string' ? payload.name : null,
+      role: coerceRole(payload['custom:role']),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export interface LoginResult {
+  idToken: string;
+  refreshToken: string | null;
+  expiresInSeconds: number;
+}
+
+export async function loginWithPassword(email: string, password: string): Promise<LoginResult> {
+  const result = await cognito().send(
+    new AdminInitiateAuthCommand({
+      UserPoolId: awsEnv.cognitoUserPoolId(),
+      ClientId: awsEnv.cognitoClientId(),
+      AuthFlow: 'ADMIN_USER_PASSWORD_AUTH',
+      AuthParameters: { USERNAME: email, PASSWORD: password },
+    }),
+  );
+
+  if (result.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
+    throw new Error('Password reset required. Use the AWS Cognito console to set a permanent password.');
+  }
+
+  const auth = result.AuthenticationResult;
+  if (!auth?.IdToken) {
+    throw new Error('Login failed: no token returned');
+  }
+  return {
+    idToken: auth.IdToken,
+    refreshToken: auth.RefreshToken ?? null,
+    expiresInSeconds: auth.ExpiresIn ?? 3600,
+  };
+}
+
+export async function updateUserFullName(email: string, fullName: string | null): Promise<void> {
+  await cognito().send(
+    new AdminUpdateUserAttributesCommand({
+      UserPoolId: awsEnv.cognitoUserPoolId(),
+      Username: email,
+      UserAttributes: [{ Name: 'name', Value: fullName ?? '' }],
+    }),
+  );
+}
+
+export async function respondToNewPasswordChallenge(
+  email: string,
+  newPassword: string,
+  session: string,
+): Promise<LoginResult> {
+  const result = await cognito().send(
+    new AdminRespondToAuthChallengeCommand({
+      UserPoolId: awsEnv.cognitoUserPoolId(),
+      ClientId: awsEnv.cognitoClientId(),
+      ChallengeName: 'NEW_PASSWORD_REQUIRED',
+      Session: session,
+      ChallengeResponses: { USERNAME: email, NEW_PASSWORD: newPassword },
+    }),
+  );
+  const auth = result.AuthenticationResult;
+  if (!auth?.IdToken) throw new Error('Password change failed');
+  return {
+    idToken: auth.IdToken,
+    refreshToken: auth.RefreshToken ?? null,
+    expiresInSeconds: auth.ExpiresIn ?? 3600,
+  };
+}

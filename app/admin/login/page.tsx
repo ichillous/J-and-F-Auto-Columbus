@@ -1,34 +1,24 @@
-import { LoginForm } from '@/components/login-form';
-import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { AuthShell } from '@/components/auth-shell';
+
+import { LoginForm } from '@/components/admin/login-form';
+import { getSession } from '@/lib/auth';
 
 export default async function AdminLoginPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  // If already logged in and has profile, redirect to admin
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-    
-    if (profile) {
-      redirect('/admin');
-    }
-  }
+  const session = await getSession();
+  if (session) redirect('/admin');
 
   return (
-    <AuthShell
-      eyebrow="Operations access"
-      title="Admin Login"
-      description="Sign in to manage inventory, leads, dealership settings, and profile data from the restyled admin console."
-    >
-      <div className="w-full max-w-md">
+    <div className="page-shell flex min-h-screen items-center justify-center px-6 py-16">
+      <div className="w-full max-w-md space-y-8">
+        <div className="space-y-2 text-center">
+          <p className="section-kicker">Operations access</p>
+          <h1 className="font-display text-4xl text-white">Admin Login</h1>
+          <p className="text-sm text-brand-dim">
+            Sign in to manage inventory, leads, and dealership settings.
+          </p>
+        </div>
         <LoginForm />
       </div>
-    </AuthShell>
+    </div>
   );
 }

@@ -1,13 +1,15 @@
-import { createClient } from '@/lib/supabase/server';
-import { requireRole } from '@/lib/auth';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { LeadStatusUpdate } from '@/components/admin/lead-status-update';
-import { unstable_noStore } from 'next/cache';
 import { Mail } from 'lucide-react';
+
+import { requireRole } from '@/lib/auth';
+import { getCarById, getLeadById } from '@/lib/data';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { LeadStatusUpdate } from '@/components/admin/lead-status-update';
 import { AdminPageHeader } from '@/components/admin-page-header';
+
+export const dynamic = 'force-dynamic';
 
 export default async function LeadDetailPage({
   params,
@@ -15,32 +17,12 @@ export default async function LeadDetailPage({
   params: Promise<{ id: string }>;
 }) {
   await requireRole(['admin', 'staff', 'readonly']);
-  unstable_noStore();
-  const supabase = await createClient();
   const { id } = await params;
 
-  const { data: lead } = await supabase
-    .from('leads')
-    .select(`
-      *,
-      cars (
-        *
-      )
-    `)
-    .eq('id', id)
-    .single();
+  const lead = await getLeadById(id);
+  if (!lead) notFound();
 
-  if (!lead) {
-    notFound();
-  }
-
-  const car = lead.cars as {
-    slug: string;
-    title: string;
-    price: number;
-    year: number;
-    mileage: number | null;
-  } | null;
+  const car = lead.car_id ? await getCarById(lead.car_id) : null;
 
   return (
     <div className="space-y-6">
@@ -53,7 +35,6 @@ export default async function LeadDetailPage({
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Contact Information */}
         <Card>
           <CardHeader>
             <CardTitle>Contact Information</CardTitle>
@@ -65,20 +46,14 @@ export default async function LeadDetailPage({
             </div>
             <div>
               <p className="text-sm text-brand-dim">Email</p>
-              <a
-                href={`mailto:${lead.email}`}
-                className="text-accent hover:underline"
-              >
+              <a href={`mailto:${lead.email}`} className="text-accent hover:underline">
                 {lead.email}
               </a>
             </div>
             {lead.phone && (
               <div>
                 <p className="text-sm text-brand-dim">Phone</p>
-                <a
-                  href={`tel:${lead.phone}`}
-                  className="text-accent hover:underline"
-                >
+                <a href={`tel:${lead.phone}`} className="text-accent hover:underline">
                   {lead.phone}
                 </a>
               </div>
@@ -98,17 +73,13 @@ export default async function LeadDetailPage({
           </CardContent>
         </Card>
 
-        {/* Car Information */}
         {car && (
           <Card>
             <CardHeader>
               <CardTitle>Car Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <Link
-                href={`/cars/${car.slug}`}
-                className="font-medium text-accent hover:underline"
-              >
+              <Link href={`/cars/${car.slug}`} className="font-medium text-accent hover:underline">
                 {car.title}
               </Link>
               <div className="mt-4 space-y-2 text-sm">
@@ -120,16 +91,17 @@ export default async function LeadDetailPage({
                   <span className="text-brand-dim">Year: </span>
                   {car.year}
                 </p>
-                <p>
-                  <span className="text-brand-dim">Mileage: </span>
-                  {car.mileage?.toLocaleString()} miles
-                </p>
+                {car.mileage !== null && (
+                  <p>
+                    <span className="text-brand-dim">Mileage: </span>
+                    {car.mileage.toLocaleString()} miles
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Message */}
         {lead.message && (
           <Card className="lg:col-span-2">
             <CardHeader>
@@ -141,7 +113,6 @@ export default async function LeadDetailPage({
           </Card>
         )}
 
-        {/* Preferred Date/Time */}
         {lead.preferred_datetime && (
           <Card className="lg:col-span-2">
             <CardHeader>

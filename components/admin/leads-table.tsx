@@ -2,19 +2,20 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Filter, X, Eye, Mail, Phone, Car as CarIcon } from 'lucide-react';
+
+import { updateLeadStatusAction } from '@/lib/actions/leads';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
-import { Filter, X, Eye, Mail, Phone, Car as CarIcon } from 'lucide-react';
 import type { Lead } from '@/lib/types';
 
-interface LeadWithCar extends Lead {
-  cars?: { title: string; slug: string } | null;
+export interface LeadWithCar extends Lead {
+  car?: { title: string; slug: string } | null;
 }
 
 interface LeadsTableProps {
@@ -51,23 +52,17 @@ export function LeadsTable({ leads, initialSearchParams }: LeadsTableProps) {
     });
   };
 
-  const updateStatus = async (leadId: string, newStatus: Lead['status']) => {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('leads')
-      .update({ status: newStatus })
-      .eq('id', leadId);
-
-    if (!error) {
+  const updateStatus = (leadId: string, newStatus: Lead['status']) => {
+    startTransition(async () => {
+      await updateLeadStatusAction(leadId, newStatus);
       router.refresh();
-    }
+    });
   };
 
   const activeFilterCount = [typeFilter, statusFilter, fromDate, toDate].filter(Boolean).length;
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -153,7 +148,6 @@ export function LeadsTable({ leads, initialSearchParams }: LeadsTableProps) {
 
       {leads.length > 0 ? (
         <>
-          {/* Mobile: Card View */}
           <div className="space-y-4 lg:hidden">
             {leads.map((lead) => (
               <Card key={lead.id}>
@@ -163,18 +157,10 @@ export function LeadsTable({ leads, initialSearchParams }: LeadsTableProps) {
                       <div className="flex-1">
                         <h3 className="font-semibold text-lg">{lead.name}</h3>
                         <div className="flex flex-wrap gap-2 mt-2">
-                          <Badge
-                            variant="secondary"
-                            size="sm"
-                            className="capitalize"
-                          >
+                          <Badge variant="secondary" size="sm" className="capitalize">
                             {lead.type.replace('_', ' ')}
                           </Badge>
-                          <Badge
-                            variant={lead.status === 'new' ? 'accent' : 'secondary'}
-                            size="sm"
-                            className="capitalize"
-                          >
+                          <Badge variant={lead.status === 'new' ? 'accent' : 'secondary'} size="sm" className="capitalize">
                             {lead.status.replace('_', ' ')}
                           </Badge>
                         </div>
@@ -195,14 +181,11 @@ export function LeadsTable({ leads, initialSearchParams }: LeadsTableProps) {
                           <span>{lead.phone}</span>
                         </div>
                       )}
-                      {lead.cars && (
+                      {lead.car && (
                         <div className="flex items-center gap-2">
                           <CarIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                          <Link
-                            href={`/cars/${lead.cars.slug}`}
-                            className="text-accent hover:underline"
-                          >
-                            {lead.cars.title}
+                          <Link href={`/cars/${lead.car.slug}`} className="text-accent hover:underline">
+                            {lead.car.title}
                           </Link>
                         </div>
                       )}
@@ -213,6 +196,7 @@ export function LeadsTable({ leads, initialSearchParams }: LeadsTableProps) {
                         className="flex h-9 rounded-md border-2 border-input bg-transparent px-3 text-sm shadow-sm transition-all duration-200 hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/20"
                         value={lead.status}
                         onChange={(e) => updateStatus(lead.id, e.target.value as Lead['status'])}
+                        disabled={isPending}
                       >
                         <option value="new">New</option>
                         <option value="in_progress">In Progress</option>
@@ -231,7 +215,6 @@ export function LeadsTable({ leads, initialSearchParams }: LeadsTableProps) {
             ))}
           </div>
 
-          {/* Desktop: Table View */}
           <div className="hidden lg:block">
             <Card>
               <div className="overflow-x-auto">
@@ -274,12 +257,9 @@ export function LeadsTable({ leads, initialSearchParams }: LeadsTableProps) {
                           </Badge>
                         </td>
                         <td className="px-6 py-4">
-                          {lead.cars ? (
-                            <Link
-                              href={`/cars/${lead.cars.slug}`}
-                              className="text-accent hover:underline text-sm font-medium"
-                            >
-                              {lead.cars.title}
+                          {lead.car ? (
+                            <Link href={`/cars/${lead.car.slug}`} className="text-accent hover:underline text-sm font-medium">
+                              {lead.car.title}
                             </Link>
                           ) : (
                             <span className="text-muted-foreground text-sm">N/A</span>
@@ -290,6 +270,7 @@ export function LeadsTable({ leads, initialSearchParams }: LeadsTableProps) {
                             className="flex h-9 rounded-md border-2 border-input bg-transparent px-3 text-sm shadow-sm transition-all duration-200 hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/20"
                             value={lead.status}
                             onChange={(e) => updateStatus(lead.id, e.target.value as Lead['status'])}
+                            disabled={isPending}
                           >
                             <option value="new">New</option>
                             <option value="in_progress">In Progress</option>

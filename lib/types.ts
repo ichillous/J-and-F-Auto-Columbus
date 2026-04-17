@@ -1,13 +1,5 @@
 export type ProfileRole = 'admin' | 'staff' | 'readonly';
 
-export interface Profile {
-  id: string;
-  role: ProfileRole;
-  full_name: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Settings {
   id: string;
   dealership_name: string;
@@ -59,4 +51,3 @@ export interface Lead {
   created_at: string;
   updated_at: string;
 }
-
