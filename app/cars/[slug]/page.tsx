@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeft, Calendar, Car as CarIcon, Cog, Fuel, Gauge, Settings } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { unstable_noStore } from 'next/cache';
 
 import { CarImageSlideshow } from '@/components/car-image-slideshow';
 import { LeadFormModal } from '@/components/lead-form-modal';
@@ -11,16 +10,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCarBySlug, getSettings } from '@/lib/data';
 
+export const revalidate = 60;
+
 export default async function CarDetailPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  unstable_noStore();
   const { slug } = await params;
   const [car, settings] = await Promise.all([getCarBySlug(slug), getSettings()]);
 
-  if (!car || car.status !== 'published') {
+  if (!car || car.status === 'draft') {
     notFound();
   }
 

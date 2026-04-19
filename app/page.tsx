@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { ArrowRight, Mail, MapPin, Phone } from 'lucide-react';
-import { unstable_noStore } from 'next/cache';
 
 import { InventoryVehicleCard } from '@/components/inventory-vehicle-card';
 import { PublicShell } from '@/components/public-shell';
@@ -9,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getSettings, listPublishedCars } from '@/lib/data';
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
-  unstable_noStore();
   const [settings, allPublished] = await Promise.all([getSettings(), listPublishedCars()]);
   const featuredCars = [...allPublished]
     .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))

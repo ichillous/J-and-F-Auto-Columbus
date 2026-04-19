@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { AlertCircle } from 'lucide-react';
+
+import { saveCarAction } from '@/lib/actions/cars';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { createClient } from '@/lib/supabase/client';
-import type { Car } from '@/lib/types';
 import { ImageUpload } from '@/components/admin/image-upload';
+import type { Car } from '@/lib/types';
 
 interface CarFormProps {
   car?: Car;
@@ -16,89 +18,61 @@ interface CarFormProps {
 
 export function CarForm({ car }: CarFormProps) {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
-    title: car?.title || '',
-    year: car?.year?.toString() || '',
-    make: car?.make || '',
-    model: car?.model || '',
-    trim: car?.trim || '',
-    mileage: car?.mileage?.toString() || '',
-    price: car?.price?.toString() || '',
-    body_type: car?.body_type || '',
-    transmission: car?.transmission || '',
-    fuel_type: car?.fuel_type || '',
-    status: car?.status || 'published',
-    hero_image_url: car?.hero_image_url || '',
-    gallery: car?.gallery || [],
-    description: car?.description || '',
+    title: car?.title ?? '',
+    slug: car?.slug ?? '',
+    year: car?.year?.toString() ?? '',
+    make: car?.make ?? '',
+    model: car?.model ?? '',
+    trim: car?.trim ?? '',
+    mileage: car?.mileage?.toString() ?? '',
+    price: car?.price?.toString() ?? '',
+    body_type: car?.body_type ?? '',
+    transmission: car?.transmission ?? '',
+    fuel_type: car?.fuel_type ?? '',
+    status: car?.status ?? 'published',
+    hero_image_url: car?.hero_image_url ?? '',
+    gallery: car?.gallery ?? [],
+    description: car?.description ?? '',
   });
 
-  const updateStatus = (status: Car['status']) => {
-    setFormData({ ...formData, status });
-  };
-
-  const generateUUID = () => {
-    return crypto.randomUUID();
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError(null);
+    startTransition(async () => {
+      try {
+        const galleryArray = Array.isArray(formData.gallery)
+          ? formData.gallery.filter(Boolean)
+          : [];
 
-    try {
-      const supabase = createClient();
-      
-      const galleryArray = Array.isArray(formData.gallery) 
-        ? formData.gallery.filter(Boolean)
-        : [];
+        await saveCarAction({
+          id: car?.id,
+          title: formData.title,
+          slug: formData.slug,
+          year: parseInt(formData.year, 10),
+          make: formData.make,
+          model: formData.model,
+          trim: formData.trim || null,
+          mileage: formData.mileage ? parseInt(formData.mileage, 10) : null,
+          price: parseFloat(formData.price),
+          body_type: formData.body_type || null,
+          transmission: formData.transmission || null,
+          fuel_type: formData.fuel_type || null,
+          status: formData.status as Car['status'],
+          hero_image_url: formData.hero_image_url || null,
+          gallery: galleryArray.length > 0 ? galleryArray : null,
+          description: formData.description || null,
+        });
 
-      // Generate UUID for slug if creating new car
-      const slug = car ? car.slug : generateUUID();
-
-      const carData = {
-        title: formData.title,
-        slug: slug,
-        year: parseInt(formData.year),
-        make: formData.make,
-        model: formData.model,
-        trim: formData.trim || null,
-        mileage: formData.mileage ? parseInt(formData.mileage) : null,
-        price: parseFloat(formData.price),
-        body_type: formData.body_type || null,
-        transmission: formData.transmission || null,
-        fuel_type: formData.fuel_type || null,
-        status: formData.status,
-        hero_image_url: formData.hero_image_url || null,
-        gallery: galleryArray.length > 0 ? galleryArray : null,
-        description: formData.description || null,
-      };
-
-      if (car) {
-        const { error: updateError } = await supabase
-          .from('cars')
-          .update(carData)
-          .eq('id', car.id);
-
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('cars')
-          .insert(carData);
-
-        if (insertError) throw insertError;
+        router.push('/admin/cars');
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
       }
-
-      router.push('/admin/cars');
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   return (
@@ -117,7 +91,6 @@ export function CarForm({ car }: CarFormProps) {
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             />
           </div>
-
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -209,12 +182,22 @@ export function CarForm({ car }: CarFormProps) {
           </div>
 
           <div>
+            <Label htmlFor="slug">Slug</Label>
+            <Input
+              id="slug"
+              placeholder="leave blank to auto-generate"
+              value={formData.slug}
+              onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+            />
+          </div>
+
+          <div>
             <Label htmlFor="status">Status *</Label>
             <select
               id="status"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+              className="flex h-10 w-full rounded-md border-2 border-input bg-transparent px-3 py-2 text-base shadow-sm transition hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/20"
               value={formData.status}
-              onChange={(e) => updateStatus(e.target.value as Car['status'])}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value as Car['status'] })}
             >
               <option value="draft">Draft</option>
               <option value="published">Published</option>
@@ -254,7 +237,7 @@ export function CarForm({ car }: CarFormProps) {
         <CardContent>
           <textarea
             id="description"
-            className="flex min-h-[200px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+            className="flex min-h-[200px] w-full rounded-md border-2 border-input bg-transparent px-3 py-2 text-sm shadow-sm transition hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/20"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           />
@@ -262,18 +245,24 @@ export function CarForm({ car }: CarFormProps) {
       </Card>
 
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-600">{error}</p>
-        </div>
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+              <p className="font-medium">{error}</p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="flex gap-4">
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving...' : car ? 'Update Car' : 'Create Car'}
+        <Button type="submit" disabled={isPending} variant="accent" size="lg">
+          {isPending ? 'Saving...' : car ? 'Update Car' : 'Create Car'}
         </Button>
         <Button
           type="button"
           variant="outline"
+          size="lg"
           onClick={() => router.push('/admin/cars')}
         >
           Cancel

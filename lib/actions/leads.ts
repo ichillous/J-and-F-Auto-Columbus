@@ -10,6 +10,8 @@ function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+const PHONE_RE = /^[+\d][\d\s\-().]{4,30}$/;
+
 export async function submitLeadAction(input: {
   name: string;
   email: string;
@@ -25,12 +27,24 @@ export async function submitLeadAction(input: {
   if (!name || name.length > 200) throw new Error('Name is required');
   if (!isEmail(email)) throw new Error('Valid email required');
 
+  const phone = input.phone?.trim() || null;
+  if (phone && !PHONE_RE.test(phone)) throw new Error('Invalid phone number');
+
+  const message = input.message?.trim().slice(0, 2000) || null;
+
+  let preferred_datetime: string | null = null;
+  if (input.preferred_datetime) {
+    const d = new Date(input.preferred_datetime);
+    if (Number.isNaN(d.getTime())) throw new Error('Invalid preferred date/time');
+    preferred_datetime = d.toISOString();
+  }
+
   await createLead({
     name,
     email,
-    phone: input.phone?.trim() || null,
-    message: input.message?.trim() || null,
-    preferred_datetime: input.preferred_datetime || null,
+    phone,
+    message,
+    preferred_datetime,
     car_id: input.car_id ?? null,
     type: input.type,
     source_page: input.source_page ?? null,

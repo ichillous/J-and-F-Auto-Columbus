@@ -25,6 +25,9 @@ export async function presignUpload(input: {
   if (!Number.isFinite(input.contentLength) || input.contentLength <= 0 || input.contentLength > MAX_BYTES) {
     throw new Error('File too large or invalid size (50MB max)');
   }
+  if (input.carId && !/^[a-zA-Z0-9-]{1,64}$/.test(input.carId)) {
+    throw new Error('Invalid carId');
+  }
 
   const safeName = input.filename.replace(/[^a-zA-Z0-9.-]/g, '_');
   const folder = input.carId ? `cars/${input.carId}` : 'cars/temp';

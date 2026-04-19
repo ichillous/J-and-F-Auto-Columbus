@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { unstable_cache } from 'next/cache';
 import {
   GetCommand,
   PutCommand,
@@ -13,6 +14,12 @@ import { awsEnv } from './aws/env';
 import type { Car, Lead, Settings } from './types';
 
 const SETTINGS_ID = 'default';
+
+export const CACHE_TAGS = {
+  publishedCars: 'cars-published',
+  carBySlug: (slug: string) => `car-slug-${slug}`,
+  settings: 'settings',
+} as const;
 
 function now(): string {
   return new Date().toISOString();
@@ -29,7 +36,7 @@ function withTimestamps<T extends object>(value: T, isNew: boolean): T & { creat
 
 // ===== Cars =====
 
-export async function listPublishedCars(): Promise<Car[]> {
+async function listPublishedCarsRaw(): Promise<Car[]> {
   const result = await ddb().send(
     new ScanCommand({
       TableName: awsEnv.carsTable(),
@@ -41,6 +48,11 @@ export async function listPublishedCars(): Promise<Car[]> {
   return (result.Items ?? []) as Car[];
 }
 
+export const listPublishedCars = unstable_cache(listPublishedCarsRaw, ['cars-published'], {
+  tags: [CACHE_TAGS.publishedCars],
+  revalidate: 60,
+});
+
 export async function listAllCars(): Promise<Car[]> {
   const result = await ddb().send(new ScanCommand({ TableName: awsEnv.carsTable() }));
   return (result.Items ?? []) as Car[];
@@ -51,17 +63,21 @@ export async function getCarById(id: string): Promise<Car | null> {
   return (result.Item as Car) ?? null;
 }
 
-export async function getCarBySlug(slug: string): Promise<Car | null> {
+async function getCarBySlugRaw(slug: string): Promise<Car | null> {
   const result = await ddb().send(
     new ScanCommand({
       TableName: awsEnv.carsTable(),
       FilterExpression: 'slug = :slug',
       ExpressionAttributeValues: { ':slug': slug },
-      Limit: 1,
     }),
   );
   return ((result.Items ?? [])[0] as Car) ?? null;
 }
+
+export const getCarBySlug = unstable_cache(getCarBySlugRaw, ['car-by-slug'], {
+  tags: [CACHE_TAGS.publishedCars],
+  revalidate: 60,
+});
 
 export type CarInput = Omit<Car, 'id' | 'created_at' | 'updated_at'> & { id?: string };
 
@@ -87,17 +103,26 @@ export async function deleteCar(id: string): Promise<void> {
 export async function batchGetCarsByIds(ids: string[]): Promise<Map<string, Car>> {
   const map = new Map<string, Car>();
   if (ids.length === 0) return map;
+  const table = awsEnv.carsTable();
   const unique = Array.from(new Set(ids));
   const chunks: string[][] = [];
   for (let i = 0; i < unique.length; i += 100) chunks.push(unique.slice(i, i + 100));
   for (const chunk of chunks) {
-    const result = await ddb().send(
-      new BatchGetCommand({
-        RequestItems: { [awsEnv.carsTable()]: { Keys: chunk.map((id) => ({ id })) } },
-      }),
-    );
-    const items = (result.Responses?.[awsEnv.carsTable()] ?? []) as Car[];
-    for (const item of items) map.set(item.id, item);
+    let keys: { id: string }[] = chunk.map((id) => ({ id }));
+    let attempt = 0;
+    while (keys.length > 0) {
+      const result = await ddb().send(
+        new BatchGetCommand({ RequestItems: { [table]: { Keys: keys } } }),
+      );
+      const items = (result.Responses?.[table] ?? []) as Car[];
+      for (const item of items) map.set(item.id, item);
+      const unprocessed = (result.UnprocessedKeys?.[table]?.Keys ?? []) as { id: string }[];
+      if (unprocessed.length === 0) break;
+      attempt += 1;
+      if (attempt > 5) throw new Error('BatchGet exceeded retry limit');
+      await new Promise((r) => setTimeout(r, 50 * 2 ** attempt));
+      keys = unprocessed;
+    }
   }
   return map;
 }
@@ -145,12 +170,17 @@ export async function updateLeadStatus(id: string, status: Lead['status']): Prom
 
 // ===== Settings =====
 
-export async function getSettings(): Promise<Settings | null> {
+async function getSettingsRaw(): Promise<Settings | null> {
   const result = await ddb().send(
     new GetCommand({ TableName: awsEnv.settingsTable(), Key: { id: SETTINGS_ID } }),
   );
   return (result.Item as Settings) ?? null;
 }
+
+export const getSettings = unstable_cache(getSettingsRaw, ['settings'], {
+  tags: [CACHE_TAGS.settings],
+  revalidate: 300,
+});
 
 export async function upsertSettings(patch: Partial<Settings>): Promise<Settings> {
   const existing = await getSettings();

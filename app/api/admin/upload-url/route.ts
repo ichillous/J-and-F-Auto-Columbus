@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 
-import { requireAdminOrStaff } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 import { presignUpload } from '@/lib/aws/s3';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
-  await requireAdminOrStaff();
+  const session = await getSession();
+  if (!session || (session.role !== 'admin' && session.role !== 'staff')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   let body: { contentType?: string; contentLength?: number; filename?: string; carId?: string };
   try {
     body = await request.json();

@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { Search } from 'lucide-react';
-import { unstable_noStore } from 'next/cache';
 
 import { InventoryFilters } from '@/components/inventory-filters';
 import { InventoryVehicleCard } from '@/components/inventory-vehicle-card';
@@ -21,6 +20,8 @@ interface SearchParams {
   sort?: string;
   [key: string]: string | undefined;
 }
+
+export const dynamic = 'force-dynamic';
 
 const sortLabels: Record<string, string> = {
   newest: 'Newest Arrival',
@@ -70,7 +71,6 @@ export default async function InventoryPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  unstable_noStore();
   const [settings, allCars] = await Promise.all([getSettings(), listPublishedCars()]);
   const resolvedSearchParams = await searchParams;
 

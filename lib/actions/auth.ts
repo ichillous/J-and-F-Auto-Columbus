@@ -16,7 +16,9 @@ export async function loginAction(formData: FormData): Promise<{ error?: string 
   try {
     result = await loginWithPassword(email, password);
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Login failed.' };
+    const e = err as { name?: string; message?: string };
+    console.error('login failure', { code: e?.name, message: e?.message });
+    return { error: 'Invalid email or password.' };
   }
 
   const store = await cookies();
@@ -39,11 +41,13 @@ export async function logoutAction(): Promise<void> {
 
 export async function updateProfileAction(formData: FormData): Promise<{ error?: string; success?: boolean }> {
   const session = await requireAuth();
-  const fullName = String(formData.get('full_name') ?? '').trim();
+  const fullName = String(formData.get('full_name') ?? '').trim().slice(0, 100);
   try {
-    await updateUserFullName(session.email, fullName || null);
+    await updateUserFullName(session.sub, fullName || null);
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Update failed.' };
+    const e = err as { name?: string; message?: string };
+    console.error('updateProfileAction failure', { code: e?.name, message: e?.message });
+    return { error: 'Update failed.' };
   }
   revalidatePath('/admin/profile');
   return { success: true };

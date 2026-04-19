@@ -3,10 +3,12 @@ import Link from 'next/link';
 import { PublicShell } from '@/components/public-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { getSettings } from '@/lib/data';
 
-export default function CarNotFoundPage() {
+export default async function CarNotFoundPage() {
+  const settings = await getSettings();
   return (
-    <PublicShell currentPath="/inventory">
+    <PublicShell currentPath="/inventory" settings={settings}>
       <div className="shell-container py-20">
         <Card>
           <CardContent className="flex min-h-[360px] flex-col items-center justify-center gap-5 text-center">

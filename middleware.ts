@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { SESSION_COOKIE } from '@/lib/auth';
+const SESSION_COOKIE = 'jfauto_session';
 
 export function middleware(request: NextRequest) {
   if (

@@ -1,5 +1,4 @@
 import { Clock, Mail, MapPin, Phone } from 'lucide-react';
-import { unstable_noStore } from 'next/cache';
 
 import { LeadFormModal } from '@/components/lead-form-modal';
 import { PublicShell } from '@/components/public-shell';
@@ -9,8 +8,9 @@ import { getSettings } from '@/lib/data';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 
+export const revalidate = 300;
+
 export default async function ContactPage() {
-  unstable_noStore();
   const settings = await getSettings();
   const hours = (settings?.hours_json ?? {}) as Record<string, string>;
 

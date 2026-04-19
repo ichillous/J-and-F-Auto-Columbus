@@ -28,20 +28,11 @@ export const metadata: Metadata = {
     type: 'website',
     title: 'J&F Auto',
     description: 'Precision-selected inventory, concierge acquisition, and premium dealership service.',
-    images: [
-      {
-        url: '/opengraph-image.png',
-        width: 1200,
-        height: 630,
-        alt: 'J&F Auto',
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'J&F Auto',
     description: 'Precision-selected inventory, concierge acquisition, and premium dealership service.',
-    images: ['/twitter-image.png'],
   },
 };
 

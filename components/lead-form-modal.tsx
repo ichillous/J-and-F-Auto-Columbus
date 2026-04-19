@@ -58,7 +58,8 @@ export function LeadFormModal({ carId, carTitle, type, children }: LeadFormModal
         router.refresh();
       }, 1800);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('submitLeadAction failure', err);
+      setError('Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

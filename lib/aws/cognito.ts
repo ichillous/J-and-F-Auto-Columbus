@@ -29,21 +29,26 @@ export interface AdminSession {
 
 const VALID_ROLES: ProfileRole[] = ['admin', 'staff', 'readonly'];
 
-function coerceRole(raw: unknown): ProfileRole {
+function parseRole(raw: unknown): ProfileRole | null {
   if (typeof raw === 'string' && (VALID_ROLES as string[]).includes(raw)) {
     return raw as ProfileRole;
   }
-  return 'readonly';
+  return null;
 }
 
 export async function verifySessionToken(idToken: string): Promise<AdminSession | null> {
   try {
     const payload = await verifier().verify(idToken);
+    const role = parseRole(payload['custom:role']);
+    if (!role) {
+      console.error('verifySessionToken: missing or invalid custom:role claim', { sub: payload.sub });
+      return null;
+    }
     return {
       sub: String(payload.sub),
       email: String(payload.email ?? ''),
       fullName: typeof payload.name === 'string' ? payload.name : null,
-      role: coerceRole(payload['custom:role']),
+      role,
     };
   } catch {
     return null;
