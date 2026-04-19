@@ -1,30 +1,24 @@
 import Link from 'next/link';
 import { ArrowRight, Mail, MapPin, Phone } from 'lucide-react';
-import { unstable_noStore } from 'next/cache';
 
 import { InventoryVehicleCard } from '@/components/inventory-vehicle-card';
 import { PublicShell } from '@/components/public-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { createClient } from '@/lib/supabase/server';
+import { getSettings, listPublishedCars } from '@/lib/data';
+
+export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  unstable_noStore();
-  const supabase = await createClient();
-
-  const { data: settings } = await supabase.from('settings').select('*').maybeSingle();
-  const { data: featuredCars } = await supabase
-    .from('cars')
-    .select('*')
-    .eq('status', 'published')
-    .order('created_at', { ascending: false })
-    .limit(6);
-
-  const liveInventoryCount = featuredCars?.length ?? 0;
+  const [settings, allPublished] = await Promise.all([getSettings(), listPublishedCars()]);
+  const featuredCars = [...allPublished]
+    .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+    .slice(0, 6);
+  const liveInventoryCount = featuredCars.length;
 
   return (
-    <PublicShell currentPath="/">
+    <PublicShell currentPath="/" settings={settings}>
       <section className="shell-container grid gap-10 py-12 lg:grid-cols-[1.1fr,0.9fr] lg:items-end lg:py-20">
         <div className="space-y-7">
           <Badge variant="secondary" size="lg">
@@ -113,7 +107,7 @@ export default async function Home() {
           </Button>
         </div>
 
-        {featuredCars && featuredCars.length > 0 ? (
+        {featuredCars.length > 0 ? (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
             {featuredCars.map((car) => (
               <InventoryVehicleCard key={car.id} car={car} compact />

@@ -1,47 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 
-interface LeadStatusUpdateProps {
+import { updateLeadStatusAction } from '@/lib/actions/leads';
+import type { Lead } from '@/lib/types';
+
+interface Props {
   leadId: string;
-  currentStatus: string;
+  currentStatus: Lead['status'];
 }
 
-export function LeadStatusUpdate({
-  leadId,
-  currentStatus,
-}: LeadStatusUpdateProps) {
+export function LeadStatusUpdate({ leadId, currentStatus }: Props) {
   const router = useRouter();
-  const [status, setStatus] = useState(currentStatus);
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  const handleStatusChange = async (newStatus: string) => {
-    setIsUpdating(true);
-    try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('leads')
-        .update({ status: newStatus })
-        .eq('id', leadId);
-
-      if (error) throw error;
-      setStatus(newStatus);
-      router.refresh();
-    } catch (err) {
-      console.error('Error updating status:', err);
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+  const [isPending, startTransition] = useTransition();
 
   return (
     <select
-      className="text-sm rounded border px-2 py-1"
-      value={status}
-      onChange={(e) => handleStatusChange(e.target.value)}
-      disabled={isUpdating}
+      className="flex h-10 rounded-md border-2 border-input bg-transparent px-3 text-sm shadow-sm transition hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/20"
+      value={currentStatus}
+      disabled={isPending}
+      onChange={(e) => {
+        const next = e.target.value as Lead['status'];
+        startTransition(async () => {
+          await updateLeadStatusAction(leadId, next);
+          router.refresh();
+        });
+      }}
     >
       <option value="new">New</option>
       <option value="in_progress">In Progress</option>

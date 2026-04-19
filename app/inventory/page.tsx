@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { Search } from 'lucide-react';
-import { unstable_noStore } from 'next/cache';
 
 import { InventoryFilters } from '@/components/inventory-filters';
 import { InventoryVehicleCard } from '@/components/inventory-vehicle-card';
 import { PublicShell } from '@/components/public-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { createClient } from '@/lib/supabase/server';
+import { getSettings, listPublishedCars } from '@/lib/data';
+import type { Car } from '@/lib/types';
 
 interface SearchParams {
   search?: string;
@@ -21,82 +21,77 @@ interface SearchParams {
   [key: string]: string | undefined;
 }
 
+export const dynamic = 'force-dynamic';
+
 const sortLabels: Record<string, string> = {
   newest: 'Newest Arrival',
   'price-low': 'Price Ascending',
   'price-high': 'Price Descending',
 };
 
+function applyFilters(cars: Car[], params: SearchParams): Car[] {
+  let result = cars;
+  if (params.search) {
+    const term = params.search.toLowerCase();
+    result = result.filter((c) =>
+      [c.title, c.make, c.model].some((field) => field?.toLowerCase().includes(term)),
+    );
+  }
+  if (params.bodyType) result = result.filter((c) => c.body_type === params.bodyType);
+  if (params.fuelType) result = result.filter((c) => c.fuel_type === params.fuelType);
+  if (params.minYear) {
+    const min = Number.parseInt(params.minYear, 10);
+    result = result.filter((c) => c.year >= min);
+  }
+  if (params.maxYear) {
+    const max = Number.parseInt(params.maxYear, 10);
+    result = result.filter((c) => c.year <= max);
+  }
+  if (params.minPrice) {
+    const min = Number.parseFloat(params.minPrice);
+    result = result.filter((c) => Number(c.price) >= min);
+  }
+  if (params.maxPrice) {
+    const max = Number.parseFloat(params.maxPrice);
+    result = result.filter((c) => Number(c.price) <= max);
+  }
+  return result;
+}
+
+function sortCars(cars: Car[], sortBy: string): Car[] {
+  const copy = [...cars];
+  if (sortBy === 'price-low') copy.sort((a, b) => Number(a.price) - Number(b.price));
+  else if (sortBy === 'price-high') copy.sort((a, b) => Number(b.price) - Number(a.price));
+  else copy.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+  return copy;
+}
+
 export default async function InventoryPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  unstable_noStore();
-  const supabase = await createClient();
+  const [settings, allCars] = await Promise.all([getSettings(), listPublishedCars()]);
   const resolvedSearchParams = await searchParams;
 
-  let query = supabase.from('cars').select('*').eq('status', 'published');
-
-  if (resolvedSearchParams.search) {
-    const searchTerm = resolvedSearchParams.search.toLowerCase();
-    query = query.or(`title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%`);
-  }
-
-  if (resolvedSearchParams.bodyType) {
-    query = query.eq('body_type', resolvedSearchParams.bodyType);
-  }
-
-  if (resolvedSearchParams.fuelType) {
-    query = query.eq('fuel_type', resolvedSearchParams.fuelType);
-  }
-
-  if (resolvedSearchParams.minYear) {
-    query = query.gte('year', Number.parseInt(resolvedSearchParams.minYear, 10));
-  }
-
-  if (resolvedSearchParams.maxYear) {
-    query = query.lte('year', Number.parseInt(resolvedSearchParams.maxYear, 10));
-  }
-
-  if (resolvedSearchParams.minPrice) {
-    query = query.gte('price', Number.parseFloat(resolvedSearchParams.minPrice));
-  }
-
-  if (resolvedSearchParams.maxPrice) {
-    query = query.lte('price', Number.parseFloat(resolvedSearchParams.maxPrice));
-  }
-
+  const filtered = applyFilters(allCars, resolvedSearchParams);
   const sortBy = resolvedSearchParams.sort || 'newest';
-  if (sortBy === 'price-low') {
-    query = query.order('price', { ascending: true });
-  } else if (sortBy === 'price-high') {
-    query = query.order('price', { ascending: false });
-  } else {
-    query = query.order('created_at', { ascending: false });
-  }
+  const cars = sortCars(filtered, sortBy);
 
-  const { data: cars } = await query;
-
-  const { data: allCars } = await supabase
-    .from('cars')
-    .select('body_type, fuel_type, year, price')
-    .eq('status', 'published');
-
-  const bodyTypes = Array.from(new Set((allCars ?? []).map((car) => car.body_type).filter(Boolean))) as string[];
-  const fuelTypes = Array.from(new Set((allCars ?? []).map((car) => car.fuel_type).filter(Boolean))) as string[];
-  const years = (allCars ?? []).map((car) => car.year).filter((year): year is number => typeof year === 'number');
-  const prices = (allCars ?? []).map((car) => Number(car.price)).filter((price) => Number.isFinite(price));
+  const bodyTypes = Array.from(new Set(allCars.map((c) => c.body_type).filter(Boolean))) as string[];
+  const fuelTypes = Array.from(new Set(allCars.map((c) => c.fuel_type).filter(Boolean))) as string[];
+  const years = allCars.map((c) => c.year).filter((y): y is number => typeof y === 'number');
+  const prices = allCars.map((c) => Number(c.price)).filter((p) => Number.isFinite(p));
 
   const minYear = years.length > 0 ? Math.min(...years) : 2000;
   const maxYear = years.length > 0 ? Math.max(...years) : new Date().getFullYear();
   const minPriceBound = prices.length > 0 ? Math.floor(Math.min(...prices) / 1000) * 1000 : 0;
   const maxPriceBound = prices.length > 0 ? Math.ceil(Math.max(...prices) / 1000) * 1000 : 100000;
-  const hasLiveInventory = (allCars?.length ?? 0) > 0;
+  const hasLiveInventory = allCars.length > 0;
   const hasActiveFilters = Object.entries(resolvedSearchParams).some(([, value]) => Boolean(value));
 
   return (
-    <PublicShell currentPath="/inventory">
+    <PublicShell currentPath="/inventory" settings={settings}>
       <div className="shell-container py-10 sm:py-12 lg:py-16">
         <section className="mb-10 grid gap-6 border-b border-white/8 pb-8 lg:grid-cols-[1fr,auto] lg:items-end">
           <div className="space-y-3">
@@ -112,7 +107,7 @@ export default async function InventoryPage({
             <p className="section-kicker">Sort By</p>
             <div className="mt-4 flex items-end justify-between gap-4">
               <span className="font-display text-2xl text-white">{sortLabels[sortBy] || sortLabels.newest}</span>
-              <span className="text-xs uppercase tracking-[0.18em] text-brand-dim">{cars?.length || 0} visible</span>
+              <span className="text-xs uppercase tracking-[0.18em] text-brand-dim">{cars.length} visible</span>
             </div>
           </div>
         </section>
@@ -132,14 +127,14 @@ export default async function InventoryPage({
             <div className="flex flex-col gap-3 border-b border-white/8 pb-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="section-kicker">Showing</p>
-                <h2 className="font-display text-3xl text-white">{cars?.length || 0} Vehicles</h2>
+                <h2 className="font-display text-3xl text-white">{cars.length} Vehicles</h2>
               </div>
               <p className="max-w-md text-sm leading-6 text-brand-dim">
                 Refine by search, body style, fuel type, year, and price to narrow the current collection.
               </p>
             </div>
 
-            {cars && cars.length > 0 ? (
+            {cars.length > 0 ? (
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
                 {cars.map((car) => (
                   <InventoryVehicleCard key={car.id} car={car} />
@@ -156,20 +151,6 @@ export default async function InventoryPage({
                     <p className="max-w-2xl text-sm leading-7 text-brand-dim">
                       Once vehicles are published, this page will populate automatically with the current collection, detail pages, and inquiry-ready listings.
                     </p>
-                  </div>
-                  <div className="grid w-full max-w-3xl gap-4 pt-2 md:grid-cols-3">
-                    <div className="glass-panel rounded-[1.4rem] px-5 py-5">
-                      <p className="section-kicker">Listings</p>
-                      <p className="mt-3 text-sm uppercase tracking-[0.18em] text-white">Published vehicles only</p>
-                    </div>
-                    <div className="glass-panel rounded-[1.4rem] px-5 py-5">
-                      <p className="section-kicker">Details</p>
-                      <p className="mt-3 text-sm uppercase tracking-[0.18em] text-white">Image-first presentation</p>
-                    </div>
-                    <div className="glass-panel rounded-[1.4rem] px-5 py-5">
-                      <p className="section-kicker">Inquiries</p>
-                      <p className="mt-3 text-sm uppercase tracking-[0.18em] text-white">Direct buyer outreach</p>
-                    </div>
                   </div>
                   <Button variant="accent" size="lg" asChild>
                     <Link href="/contact">Contact The Dealership</Link>

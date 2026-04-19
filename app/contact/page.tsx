@@ -1,22 +1,21 @@
 import { Clock, Mail, MapPin, Phone } from 'lucide-react';
-import { unstable_noStore } from 'next/cache';
 
 import { LeadFormModal } from '@/components/lead-form-modal';
 import { PublicShell } from '@/components/public-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { createClient } from '@/lib/supabase/server';
+import { getSettings } from '@/lib/data';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 
+export const revalidate = 300;
+
 export default async function ContactPage() {
-  unstable_noStore();
-  const supabase = await createClient();
-  const { data: settings } = await supabase.from('settings').select('*').maybeSingle();
+  const settings = await getSettings();
   const hours = (settings?.hours_json ?? {}) as Record<string, string>;
 
   return (
-    <PublicShell currentPath="/contact">
+    <PublicShell currentPath="/contact" settings={settings}>
       <div className="shell-container space-y-10 py-12 lg:space-y-14 lg:py-16">
         <section className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr] lg:items-end">
           <div className="space-y-4">

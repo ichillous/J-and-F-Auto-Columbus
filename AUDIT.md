@@ -1,686 +1,302 @@
-# J&F Auto — Website Audit
+# J&F Auto — Website Audit (Post-AWS-Migration)
 
-**Scope:** Full-stack audit of the `jandfauto` Next.js 16 + Supabase + Tailwind/shadcn app. Covers security, SEO, performance, accessibility, code quality, and production-readiness.
+**Scope:** Full-stack audit after migration to AWS-native architecture (Cognito + DynamoDB + S3 + Amplify Hosting). Supersedes earlier Supabase-era audits — those findings are either resolved by the migration or no longer apply.
 
-**Stack observed:** Next.js 16.0.7 (App Router, `proxy.ts`), React 19.2.1, Supabase SSR, Tailwind + shadcn/ui, `@vercel/analytics` (installed but not mounted).
+**Stack observed:** Next.js 15.5.15 App Router (standalone), React 19, `aws-jwt-verify` for Cognito ID tokens, DynamoDB Document Client, S3 presigned PUT, Amplify Hosting.
 
-**Legend:** [BLOCK] · [HIGH] · [MED] · [LOW]
-
----
-
-## [BLOCK] Blocking findings (must fix before shipping)
-
-### B1. Privilege escalation via `profiles` RLS
-**File:** `supabase/migrations/001_initial_schema.sql:111-113`
-
-```sql
-CREATE POLICY "Users can update their own profile"
-  ON profiles FOR UPDATE
-  USING (auth.uid() = id);
-```
-
-No `WITH CHECK` clause and no column-level restriction. Any authenticated user — including a `readonly` self-signup — can execute `UPDATE profiles SET role = 'admin' WHERE id = auth.uid()` directly from the browser Supabase client and instantly gain admin permissions on cars, leads, and settings.
-
-**Fix:**
-```sql
-CREATE POLICY "Users can update their own profile"
-  ON profiles FOR UPDATE
-  USING (auth.uid() = id)
-  WITH CHECK (
-    auth.uid() = id
-    AND role = (SELECT role FROM profiles WHERE id = auth.uid())
-  );
-```
-Better: drop self-update entirely and route profile edits (name only) through a `SECURITY DEFINER` RPC that whitelists editable columns.
+**Legend:** [BLOCK] = must fix before shipping | [HIGH] = ship-blocker at any real traffic | [MED] = should fix soon | [LOW] = polish
 
 ---
 
-### B2. Filter injection in inventory search
-**File:** `app/inventory/page.tsx:41-44`
+## [BLOCK] Issues
+
+### B1 — `getCarBySlug` may return `null` for valid slugs — **FIXED**
+[lib/data.ts:54](lib/data.ts:54)
 
 ```ts
-if (resolvedSearchParams.search) {
-  const searchTerm = resolvedSearchParams.search.toLowerCase();
-  query = query.or(`title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%`);
-}
+new ScanCommand({
+  TableName: awsEnv.carsTable(),
+  FilterExpression: 'slug = :slug',
+  ExpressionAttributeValues: { ':slug': slug },
+  Limit: 1,
+})
 ```
 
-Raw user input is interpolated into a PostgREST `.or()` filter string with no escaping. A crafted `?search=` value containing commas, dots, or operator tokens (e.g. `foo,status.eq.draft`) can append new filter clauses, remove restrictions, or reshape the query. RLS limits the damage to `status='published'` cars, but it still exposes unlisted data if combined with #B1, and leaks query structure.
+In DynamoDB, `Limit` is applied **before** `FilterExpression`. This scans 1 item then filters — if the first scanned item isn't the requested slug, the result is empty and the page 404s. This will randomly break car detail pages as the table grows past one item.
 
-**Fix:** Sanitize the input, or use full-text search:
-```ts
-const safe = resolvedSearchParams.search.replace(/[,.*()%]/g, '');
-query = query.or(`title.ilike.%${safe}%,make.ilike.%${safe}%,model.ilike.%${safe}%`);
-```
-Better: add a `search_tsv tsvector` generated column on `cars` and use `.textSearch('search_tsv', term, { type: 'websearch' })`.
+**Fix:** drop `Limit: 1` (let it scan and filter, take first), or — preferred — add a GSI on `slug` and use `QueryCommand`.
 
----
+### B2 — API route uses `redirect()` instead of returning 401 — **FIXED**
+[app/api/admin/upload-url/route.ts:9](app/api/admin/upload-url/route.ts:9)
 
-### B3. Tutorial / starter-template cruft shipped to production
-The repo was bootstrapped from the Supabase Next.js starter and still carries the template code alongside the real app:
+`requireAdminOrStaff()` calls `redirect('/admin/login')` on auth failure. In a Route Handler, this returns a 307 with an HTML location, not JSON — the `fetch` in [components/admin/image-upload.tsx](components/admin/image-upload.tsx) will receive an HTML body and the JSON parse will throw a confusing error, masking the real cause (expired session). Image upload silently breaks instead of prompting re-auth.
 
-| Path | What it is | Action |
-|------|------------|--------|
-| `app/protected/page.tsx` | Tutorial "your claims JSON" page | Delete |
-| `app/protected/layout.tsx` | Tutorial layout with DeployButton + "Powered by Supabase" | Delete |
-| `app/auth/*` | Parallel auth flow separate from `/admin/login` | Consolidate or delete (see #B4) |
-| `components/tutorial/*` | 5 tutorial step components | Delete |
-| `components/deploy-button.tsx` | Deploy-to-Vercel button | Delete |
-| `components/env-var-warning.tsx` | Env-var missing banner | Delete |
-| `components/next-logo.tsx` | Next.js logo | Delete |
-| `components/supabase-logo.tsx` | Supabase logo | Delete |
-| `components/hero.tsx` | Tutorial hero, unused | Delete |
-| `components/tutorial/fetch-data-steps.tsx` | Referenced only by `/protected` | Delete with /protected |
+**Fix:** in the route handler, call `getSession()` directly and `return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })` instead of using the redirecting helper.
 
-This is bundle bloat, brand leakage ("Powered by Supabase" footer on `/protected`), and a maintenance trap. The `/protected` page also dumps raw JWT claims JSON into the DOM — minor info disclosure.
+### B3 — Refresh token discarded; sessions die at 1h
+[lib/actions/auth.ts:23](lib/actions/auth.ts:23), [lib/aws/cognito.ts:79](lib/aws/cognito.ts:79)
+
+`loginWithPassword` returns `refreshToken`, but `loginAction` only stores `idToken` in the cookie. Cognito ID tokens default to 60 minutes. After expiry the JWKS verifier rejects the token, `getSession()` returns `null`, and middleware redirects mid-task — admin loses unsaved form work.
+
+**Fix:** either (a) issue a long-lived session cookie (signed/encrypted) plus a separate refresh-token cookie and refresh on demand, or (b) raise the Cognito ID token expiry to match the cookie maxAge in the user pool client config (and document that operationally). Option (a) is preferred because token rotation also supports forced sign-out.
 
 ---
 
-### B4. Dual auth flows: `/auth/*` and `/admin/login`
-**Files:** `app/auth/{login,sign-up,forgot-password,update-password,confirm,sign-up-success,error}`, `app/admin/login/page.tsx`
+## [HIGH] Issues
 
-Two separate login surfaces exist. Only `/admin/*` is gated by `proxy.ts`. `/auth/sign-up` is public and — combined with the default `readonly` role from the `handle_new_user` trigger, and #B1 — means anyone can sign up, elevate, and take over. Even without #B1, the sign-up route is user-visible but there's no product use case for public signup on a single dealership site.
+### H1 — No rate limiting on public lead form
+[lib/actions/leads.ts:13](lib/actions/leads.ts:13)
 
-**Fix:** Remove `/auth/sign-up*` and `/auth/forgot-password`, keep a single `/admin/login`. Disable public sign-ups in Supabase dashboard (`Authentication → Providers → Email → Allow signups = off`). Admin creates new staff manually.
+`submitLeadAction` accepts unauthenticated POSTs and writes to DynamoDB. There is no IP throttling, no CAPTCHA, no honeypot, no per-email cap. A trivial bot fills the leads table — costs scale linearly with abuse, and the admin inbox becomes useless.
 
----
+**Fix:** add a CAPTCHA (hCaptcha or Cloudflare Turnstile) on the public lead form, plus a server-side per-IP token bucket (e.g., a small DynamoDB table keyed on IP+minute, or AWS WAF rate-based rules in front of Amplify).
 
-## [HIGH] High findings (SEO, perf, architecture)
-
-### H1. Caching completely disabled on every public page
-**Files:** `app/page.tsx:14`, `app/inventory/page.tsx:31`, `app/cars/[slug]/page.tsx:20`, `app/contact/page.tsx:13`
-
-Every public page calls `unstable_noStore()`. This forces fully dynamic rendering on every request. Settings and cars change rarely (admin-triggered). With Next 16 Cache Components:
+### H2 — No rate limiting on login; user enumeration via error leaks
+[lib/actions/auth.ts:18](lib/actions/auth.ts:18)
 
 ```ts
-// app/page.tsx
-'use cache'
-import { cacheTag } from 'next/cache';
-
-export default async function Home() {
-  cacheTag('settings', 'cars-featured');
-  // ...
-}
+return { error: err instanceof Error ? err.message : 'Login failed.' };
 ```
 
-Then on writes in admin (car create/update/delete, settings update):
-```ts
-import { revalidateTag } from 'next/cache';
-revalidateTag('cars-featured');
-revalidateTag('cars');
-```
+Cognito returns distinct errors for `UserNotFoundException` vs `NotAuthorizedException` — the catch passes the raw message to the client, letting attackers enumerate valid admin usernames. There is also no application-level brute-force throttle (Cognito has its own loose limits).
 
-Expected impact: drop p50 home/inventory TTFB from ~200–400ms (Supabase RTT) to cache-hit speed, and cut Supabase egress.
+**Fix:** map all auth failures to a generic "Invalid email or password." message. Add an IP-based attempt counter (5 attempts / 15 min) before calling Cognito. Enable Cognito advanced security if available (paid tier).
 
----
+### H3 — All reads use `Scan` with no pagination
+[lib/data.ts:32](lib/data.ts:32), [lib/data.ts:44](lib/data.ts:44), [lib/data.ts:107](lib/data.ts:107)
 
-### H2. No per-car metadata (SEO disaster)
-**File:** `app/cars/[slug]/page.tsx`
+`listPublishedCars`, `listAllCars`, and `listLeads` all do full-table scans and never honor `LastEvaluatedKey`. DynamoDB returns up to 1MB per page — past that, results are silently truncated. Cost also scales linearly with table size on every page render.
 
-Every car detail page inherits the root `"J&F Auto"` title. Google and social platforms see every listing as identical. Add:
+**Fix:** add GSIs (`status-updated_at-index` on cars, `created_at-index` on leads) and migrate to `QueryCommand`. For pages that genuinely need all rows, loop until `LastEvaluatedKey` is undefined. Cache `listPublishedCars` aggressively (Next `revalidate` or `unstable_cache` with tag-based invalidation from `saveCarAction`).
 
-```ts
-export async function generateMetadata({ params }): Promise<Metadata> {
-  const { slug } = await params;
-  const supabase = await createClient();
-  const { data: car } = await supabase
-    .from('cars').select('title,description,hero_image_url,year,make,model,price')
-    .eq('slug', slug).eq('status', 'published').single();
-  if (!car) return { title: 'Vehicle not found' };
-  return {
-    title: `${car.title} | J&F Auto`,
-    description: car.description?.slice(0, 155) ?? `${car.year} ${car.make} ${car.model} for sale at J&F Auto`,
-    openGraph: { images: car.hero_image_url ? [car.hero_image_url] : [], type: 'website' },
-    alternates: { canonical: `/cars/${slug}` },
-  };
-}
-```
+### H4 — No MFA challenge handling in login flow
+[lib/aws/cognito.ts:69](lib/aws/cognito.ts:69)
+
+The login path only handles the `NEW_PASSWORD_REQUIRED` challenge. If the user pool has MFA enabled (SMS or TOTP), `AdminInitiateAuth` returns a `SOFTWARE_TOKEN_MFA` / `SMS_MFA` challenge with no `AuthenticationResult`, and the code throws `"Login failed: no token returned"` — admins can't sign in.
+
+**Fix:** detect the MFA challenge name, persist the `Session` token, render a code-entry screen, and call `AdminRespondToAuthChallenge` with the user's code. Until then, document that MFA must remain off in the user pool.
+
+### H5 — `ADMIN_USER_PASSWORD_AUTH` requires app client without secret
+[lib/aws/cognito.ts:60](lib/aws/cognito.ts:60)
+
+`AdminInitiateAuth` is called without a `SECRET_HASH`. If the deployed Cognito app client is configured with a client secret (the default for "Confidential client" in the new console), every login fails with `"Client is configured with secret but secret was not received"`. There is no defense or message guiding the operator to fix it.
+
+**Fix:** document loudly in the README that the app client must be created **without** a secret, OR add `SECRET_HASH` computation (HMAC-SHA256 of `username + clientId` with the secret) to the call and read the secret from `COGNITO_CLIENT_SECRET`.
 
 ---
 
-### H3. No structured data (JSON-LD)
-A local auto dealer without `LocalBusiness` + `AutoDealer` + `Vehicle` schema is invisible to Google's rich results. Add:
+## [MED] Issues
 
-- `AutoDealer` + `LocalBusiness` on `app/page.tsx` (name, address, geo, phone, openingHoursSpecification, url).
-- `Vehicle` on `app/cars/[slug]/page.tsx` (name, VIN if available, brand, model, modelDate, mileageFromOdometer, vehicleTransmission, fuelType, offers → Offer with price/priceCurrency/availability).
+### M1 — Server trusts client-supplied `contentType` on presigned uploads
+[lib/aws/s3.ts:22](lib/aws/s3.ts:22)
 
-Reference: schema.org/AutoDealer, schema.org/Vehicle.
+The route validates `contentType` is in the allowlist, then uses that exact value to sign the PUT. A malicious uploader (with admin/staff cred) can lie and upload arbitrary bytes labeled as `image/jpeg`. Risk is low (admin-gated), but the file then hits public S3 with `Cache-Control: immutable` for a year.
 
----
+**Fix:** add server-side post-upload validation (Lambda triggered on `s3:ObjectCreated:*` that sniffs magic bytes and quarantines mismatches), or do upload-then-validate-then-publish via two-stage keys.
 
-### H4. No `sitemap.xml` or `robots.txt`
-Create `app/sitemap.ts`:
-```ts
-import { createClient } from '@/lib/supabase/server';
+### M2 — `slug` uniqueness is not enforced
+[lib/data.ts:68](lib/data.ts:68), [lib/actions/cars.ts:18](lib/actions/cars.ts:18)
 
-export default async function sitemap() {
-  const supabase = await createClient();
-  const { data: cars } = await supabase.from('cars').select('slug, updated_at').eq('status', 'published');
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://jandfauto.com';
-  return [
-    { url: base, lastModified: new Date(), changeFrequency: 'weekly', priority: 1 },
-    { url: `${base}/inventory`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.9 },
-    { url: `${base}/contact`, lastModified: new Date(), priority: 0.7 },
-    ...(cars ?? []).map(c => ({
-      url: `${base}/cars/${c.slug}`,
-      lastModified: new Date(c.updated_at),
-      changeFrequency: 'weekly' as const,
-      priority: 0.8,
-    })),
-  ];
-}
-```
-And `app/robots.ts`:
-```ts
-export default function robots() {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://jandfauto.com';
-  return {
-    rules: [{ userAgent: '*', allow: '/', disallow: ['/admin/', '/auth/', '/protected'] }],
-    sitemap: `${base}/sitemap.xml`,
-  };
-}
-```
+Two cars with the same generated slug both write happily. `getCarBySlug` will then return whichever one Scan finds first, with no indication to the admin that they collided. Especially likely with the slugify fallback when `make/model/year` repeats.
 
----
+**Fix:** before `PutCommand`, query the slug GSI (see H3) and append a short random suffix on collision. Or use `ConditionExpression: 'attribute_not_exists(slug_lock)'` with a separate slug-lock table.
 
-### H5. Car slugs are UUIDs, not human-readable
-**File:** `components/admin/car-form.tsx:39-56`
+### M3 — Login error path swallows useful operator signals — **FIXED**
+[lib/actions/auth.ts:18](lib/actions/auth.ts:18)
 
-```ts
-const generateUUID = () => crypto.randomUUID();
-// ...
-const slug = car ? car.slug : generateUUID();
-```
+While client-facing messages should be generic (H2), the server should `console.error` the underlying Cognito error with code so CloudWatch shows what actually failed (misconfigured client, region mismatch, throttling). Currently the operator is blind.
 
-Every car URL looks like `/cars/3c9f5e2a-....` — zero SEO keyword value, ugly in shares. Generate from title:
-```ts
-const slugify = (s: string) => s.toLowerCase()
-  .replace(/[^a-z0-9]+/g, '-')
-  .replace(/(^-|-$)/g, '')
-  .slice(0, 80);
-const base = slugify(`${formData.year}-${formData.make}-${formData.model}-${formData.trim ?? ''}`);
-const slug = `${base}-${crypto.randomUUID().slice(0, 6)}`;
-```
+**Fix:** `console.error('login failure', { code: err.name, message: err.message })` before returning the generic message.
+
+### M4 — `coerceRole` silently downgrades to `readonly` — **FIXED**
+[lib/aws/cognito.ts:32](lib/aws/cognito.ts:32)
+
+A user with no `custom:role` claim or a typo in the claim becomes `readonly`. They will sign in successfully and see a half-broken admin shell with no explanation. Failing closed (treat as no session) is safer and surfaces the misconfiguration immediately.
+
+**Fix:** `verifySessionToken` should `return null` when the role claim is missing/invalid rather than defaulting.
+
+### M5 — `submitLeadAction` does not bound message/phone length — **FIXED**
+[lib/actions/leads.ts:23](lib/actions/leads.ts:23)
+
+Name is capped at 200, but `message` (potentially huge), `phone`, and `preferred_datetime` (no parse validation) are written verbatim to DynamoDB. A 400KB message body is a single-write expense and bloats reads. `preferred_datetime` may be unparseable garbage.
+
+**Fix:** clamp `message` to ~2000 chars, validate `phone` against a permissive regex, parse `preferred_datetime` with `new Date(...)` and reject `Number.isNaN(d.getTime())`.
+
+### M6 — `unstable_noStore()` on every public page defeats caching
+[app/cars/[slug]/page.tsx:19](app/cars/[slug]/page.tsx:19)
+
+Every car detail page hits Scan-via-`getCarBySlug` on every request. Combined with H1/H3, this is the most expensive path in the system. Inventory listings likely have the same issue.
+
+**Fix:** remove `unstable_noStore()` and switch to `revalidate = 60` (or tag-based with `revalidateTag` called from `saveCarAction`). Most car-detail content changes minutes-scale at most.
+
+### M7 — No CSP, no HSTS
+[next.config.ts](next.config.ts)
+
+Headers configured: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`. Missing: `Content-Security-Policy` and `Strict-Transport-Security`. Modern security baselines expect both.
+
+**Fix:** add HSTS (`max-age=63072000; includeSubDomains; preload` once you're confident), and a starter CSP — `default-src 'self'; img-src 'self' https://<s3-or-cloudfront-domain> data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'`.
+
+### M8 — `updateProfileAction` assumes Cognito username == email
+[lib/actions/auth.ts:44](lib/actions/auth.ts:44)
+
+`updateUserFullName(session.email, ...)` calls `AdminUpdateUserAttributes` with `Username: email`. This works only when the user pool is configured with email as the alias/username. If usernames are UUIDs (Cognito's other default), this throws "User does not exist". Should pass `session.sub` and configure the pool so `AdminUpdateUserAttributes` accepts sub. Also no length/sanity validation on `fullName`.
+
+**Fix:** use `session.sub` consistently as the Cognito username, and document the user pool's "Sign-in alias" requirement. Cap `fullName` at 100 chars.
 
 ---
 
-### H6. Duplicated navigation across 4 pages (~240 lines)
-**Files:** `app/page.tsx:36-92`, `app/inventory/page.tsx:95-159`, `app/cars/[slug]/page.tsx:43-95`, `app/contact/page.tsx:27-71`
+## [LOW] Issues
 
-The nav + logo + desktop links + mobile Sheet drawer are copy-pasted. Create a route group:
+### L1 — Two registered MCP integrations still reference Supabase
+[.mcp.json](.mcp.json)
 
-```
-app/
-  (public)/
-    layout.tsx   ← shared Navbar + Footer
-    page.tsx     ← home (move from app/page.tsx)
-    inventory/page.tsx
-    cars/[slug]/page.tsx
-    contact/page.tsx
-```
+Supabase MCP server is still wired up in the project's MCP config even though Supabase is fully removed from the runtime. Harmless but misleading; remove if no longer needed.
 
-The footer only exists on the home page right now — inventory, car detail, and contact have no footer. Fixing the layout consolidates both.
+### L2 — `metadataBase` only set when `NEXT_PUBLIC_SITE_URL` is present
+[app/layout.tsx](app/layout.tsx)
 
----
+OG/twitter image URLs become relative when the env var is missing in non-prod, which some scrapers reject. Falling back to `https://localhost` or the Amplify default URL would be safer than silent absence.
 
-### H7. OpenGraph image is a 512×512 square logo
-**File:** `app/layout.tsx:22-36`
+### L3 — `requireRole` redirects from server actions
+[lib/auth.ts:25](lib/auth.ts:25)
 
-Social previews want 1200×630 landscape. Create an OG image route:
-```ts
-// app/opengraph-image.tsx
-import { ImageResponse } from 'next/og';
-export const size = { width: 1200, height: 630 };
-export const contentType = 'image/png';
-export default async function OG() { /* brand composition */ }
-```
-Or drop a static `app/opengraph-image.png` at 1200×630.
+When a server action calls `requireRole` and fails, the redirect bubbles out of the action call — the form submission "succeeds" but the page navigates. Surprising UX, especially for `updateLeadStatusAction`. Throwing an error and letting the action return `{ error: 'Forbidden' }` would be cleaner.
 
----
+### L4 — `batchGetCarsByIds` ignores `UnprocessedKeys`
+[lib/data.ts:87](lib/data.ts:87)
 
-### H8. Lead form modal is not accessible
-**File:** `components/lead-form-modal.tsx:94-207`
+DynamoDB `BatchGetItem` may return some keys as unprocessed under throttling. The current code drops them silently — the leads page will show "—" for cars that actually exist.
 
-- Trigger is `<div onClick={...}>` — not focusable, no keyboard handler, no role.
-- Modal is a hand-rolled `fixed inset-0` div — no focus trap, no ESC-to-close, no scroll lock, no `aria-modal`, no labelled heading connection, no return-focus-to-trigger.
-- `@radix-ui/react-dialog` is **already installed** (see `package.json`) but not used.
+**Fix:** loop on `result.UnprocessedKeys` with exponential backoff until empty.
 
-**Fix:** Replace with Radix `Dialog.Root / Trigger / Content / Title / Description / Close`. This gets you focus management, ESC handling, and a11y attributes for free.
+### L5 — `presignUpload` allows arbitrary `carId` strings
+[lib/aws/s3.ts:30](lib/aws/s3.ts:30)
+
+The carId becomes part of the S3 key with no sanitization. An admin passing `../foo` produces a non-traversal-but-confusing key. Low impact, admin-gated, but worth a regex check (`/^[a-zA-Z0-9-]{1,64}$/`).
+
+### L6 — `.gitignore` drift, modified `.claude/ralph-loop.local.md` uncommitted
+[.gitignore](.gitignore)
+
+Working tree has uncommitted edits to `.claude/ralph-loop.local.md` and `.gitignore`. Verify these aren't accidental before the next push.
 
 ---
 
-### H9. `@vercel/analytics` installed but never mounted
-**Files:** `package.json:19`, `app/layout.tsx`
+## Resolved by migration (no longer applicable)
 
-```ts
-import { Analytics } from '@vercel/analytics/react';
-// inside <body>:
-<Analytics />
-```
-Either mount it or remove the dependency.
+The pre-migration audit's 97 findings against Supabase are obsolete. Notable resolutions:
 
----
-
-### H10. No rate limiting / bot protection on public lead insert
-**Files:** `supabase/migrations/001_initial_schema.sql:183-186`, `components/lead-form-modal.tsx:52-62`
-
-```sql
-CREATE POLICY "Public can insert leads"
-  ON leads FOR INSERT
-  TO public
-  WITH CHECK (true);
-```
-
-Any unauthenticated user can post unlimited leads. Forms are trivially scriptable. Options:
-
-- **Cheapest:** Add a honeypot field + time-to-submit check. Filters ~90% of bots.
-- **Stronger:** Cloudflare Turnstile or Vercel BotID in front of the insert.
-- **Architectural:** Move lead insert through a Next.js Server Action with rate limiting (Upstash Redis + `@upstash/ratelimit`) and call Supabase with the anon key from the server.
-
-Also: no server-side validation. `email` is only checked with HTML5 `type="email"` on the client.
+- **B1 (Supabase profiles RLS)** — profiles table eliminated; role lives in Cognito `custom:role` JWT claim verified server-side.
+- **B2 (`.or()` injection)** — replaced with in-memory filtering on Scan results.
+- **B3 (tutorial cruft)** — removed.
+- **B4 (dual auth flows / public signup)** — `/auth/*` deleted; only Cognito `AdminInitiateAuth` admin login remains.
+- **B5 (open redirect in `auth/confirm`)** — route deleted.
+- **H1 (`unstable_noStore` everywhere)** — partially resolved; only the car detail page still uses it (see M6).
 
 ---
 
-## [MED] Medium findings
+## Operational checklist (deployment must satisfy)
 
-### M1. Image upload: 50MB cap, no compression, weak naming
-**File:** `components/admin/image-upload.tsx:53-62`
+These are not code bugs but deployment-time requirements implied by the codebase. Capture them in runbooks.
 
-- 50MB is ~10× what a car photo should be. Most phones produce 3–6MB JPEGs.
-- No client-side resize/compression → Supabase egress costs and slow LCP on car detail.
-- `${timestamp}-${filename}` is not collision-proof under concurrent uploads.
-- Bucket has no `allowed_mime_types` or `file_size_limit` configured (check Supabase dashboard).
-- Uses `key={index}` in the preview map (`image-upload.tsx:168`) — stale key anti-pattern.
-
-**Fix:** Cap at 5MB, resize to ≤2000px on the client via `createImageBitmap` + OffscreenCanvas, use `crypto.randomUUID()` prefix, configure bucket-level limits.
+- Cognito app client created **without** a client secret, with `ADMIN_USER_PASSWORD_AUTH` enabled (H5).
+- Cognito user pool has `custom:role` defined as a mutable string attribute (M4).
+- Amplify compute IAM role: `dynamodb:{Get,Put,Update,Delete,Scan,BatchGet}Item` on the three tables, `s3:PutObject` on `cars/*`, `cognito-idp:{AdminInitiateAuth,AdminRespondToAuthChallenge,AdminUpdateUserAttributes}` on the user pool.
+- S3 bucket: public-read or fronted by CloudFront; CORS allows `PUT` from the Amplify domain; lifecycle rule on `cars/temp/*` (since uploads land there before a car has an id).
+- DynamoDB tables: `id` (string) partition key on all three; **add GSI on `slug` for cars** before launch (B1 / H3).
+- WAF rate-based rule attached to the Amplify distribution (H1, H2).
 
 ---
 
-### M2. Admin writes bypass any server-side validation
-**Files:** `components/admin/car-form.tsx`, `components/admin/settings-form.tsx`, `components/admin/lead-status-update.tsx`
+## Second-pass additions
 
-All admin CRUD is done directly from the browser with `createClient()` (anon key + user JWT) and relies entirely on RLS to gate it. This works for permissions but means:
-- No server-side schema validation (Zod) before insert.
-- Rich-text fields like `description` aren't sanitized. Currently rendered safely via `whitespace-pre-line`, but flag for the future if any admin ever introduces raw HTML rendering.
-- No audit log of who-did-what (nothing tracks admin actions).
+### H6 — Home page and inventory both Scan DynamoDB on every request
+[app/page.tsx:13](app/page.tsx:13), [app/inventory/page.tsx:73](app/inventory/page.tsx:73)
 
-**Fix:** Move admin writes to Server Actions with Zod validation. Add an `audit_log` table.
+Both public pages call `unstable_noStore()` and then `listPublishedCars()` (full Scan). Every landing page view = one DynamoDB Scan of the cars table. With concurrent crawlers, bots, and previews this becomes the dominant DynamoDB cost long before real traffic arrives, and homepage TTFB is bounded by the Scan round-trip.
 
----
+**Fix:** replace `unstable_noStore()` with `export const revalidate = 60` (or tag-based invalidation triggered by `saveCarAction` / `deleteCarAction`). The inventory page's filters are applied in-memory from the already-fetched list, so caching upstream gives the whole page a free ride.
 
-### M3. `unstable_noStore` and settings fetch on every page are redundant
-Every public page fetches `settings` separately. With #H1 fixed, you can extract a cached helper:
-```ts
-'use cache'
-async function getSettings() {
-  cacheTag('settings');
-  const supabase = await createClient();
-  const { data } = await supabase.from('settings').select('*').single();
-  return data;
-}
-```
-And call it from the shared layout so every page gets it once.
-
----
-
-### M4. No `loading.tsx` or `error.tsx` anywhere
-Zero route-level loading or error UI. Navigation appears frozen until the server responds; unhandled exceptions fall through to the default Next error page. Add at minimum:
-- `app/(public)/inventory/loading.tsx` — skeleton grid
-- `app/(public)/cars/[slug]/loading.tsx` — skeleton detail
-- `app/error.tsx` — global error boundary
-- `app/not-found.tsx` — branded 404 (currently only `app/cars/[slug]/not-found.tsx` exists)
-
----
-
-### M5. Error messages leak raw Supabase errors to users
-**Files:** `components/lead-form-modal.tsx:80`, `components/admin/car-form.tsx:94`, `components/admin/image-upload.tsx:101`
-
-```ts
-setError(err instanceof Error ? err.message : 'An error occurred');
-```
-
-`err.message` from Supabase can include table names, column names, and constraint details. Show a user-friendly message and log the real error server-side.
-
----
-
-### M6. `proxy.ts` short-circuits entirely when env vars missing
-**File:** `lib/supabase/proxy.ts:11-14`
-
-```ts
-if (!hasEnvVars) return supabaseResponse;
-```
-
-In production this silently disables all auth protection if the env vars fail to load. Should throw at build time or at worst log and return a 503.
-
----
-
-### M7. `getCurrentProfile()` + `getCurrentUser()` both roundtrip
-**File:** `app/admin/layout.tsx:17-18`, `lib/auth.ts`
-
-```ts
-const user = await getCurrentUser();
-const profile = user ? await getCurrentProfile() : null;
-```
-
-Each call makes a separate `supabase.auth.getUser()` round trip, and `getCurrentProfile()` does its own `getUser()` again then queries `profiles`. That's three network hops per admin page load when one suffices. Combine into a single helper:
-```ts
-export async function getCurrentUserAndProfile() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { user: null, profile: null };
-  const { data: profile } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single();
-  return { user, profile };
-}
-```
-
----
-
-### M8. `<Image fill>` with no `sizes` prop
-**Files:** `app/page.tsx:142-147`, `app/inventory/page.tsx:183-188`, `components/admin/image-upload.tsx:171-176`
-
-Without `sizes`, Next serves the largest-resolution variant regardless of viewport. Hurts LCP and mobile data. Add appropriate hints:
-```tsx
-<Image src={...} alt={car.title} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
-```
-
----
-
-### M9. Inventory filter form is duplicated (~200 lines)
-**File:** `components/inventory-filters.tsx`
-
-`FilterForm` is defined inline at line 71, used only for the mobile drawer. The desktop version at line 242 re-inlines the entire form with `-desktop` ID suffixes. Extract to a single shared subcomponent. Also: `useSearchParams` is imported but never read.
-
----
-
-### M10. JSONB `hours_json` rendered via `Object.entries` — key order is unreliable
-**File:** `app/page.tsx:215`, `app/contact/page.tsx:144`
-
-JSONB in Postgres does not guarantee key ordering, and JS iterates insertion order as-stored. You may see `Wednesday` before `Monday`. Normalize to an ordered array:
-```ts
-const DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const;
-{DAYS.map(d => hours?.[d] && (<Row key={d} day={d} time={hours[d]} />))}
-```
-
----
-
-### M11. Seeded settings still have placeholder values
-**File:** `supabase/migrations/001_initial_schema.sql:248-259`
-
-- Phone: `(614) 000-0000`
-- Email: `info@jandfauto.com`
-- Address: `Columbus, OH`
-
-These will ship unless the dealer updates them on first run. Add a deploy-check or first-admin-login wizard.
-
----
-
-## [LOW] Low / polish
-
-- **L1.** Mix of `text-gray-*` / `bg-gray-*` raw palette with `text-muted-foreground` / `bg-muted` design tokens. Pick one (`app/page.tsx:198`, `app/page.tsx:206`, `components/lead-form-modal.tsx:109`).
-- **L2.** No `export const viewport` in root layout. Next 15+ moved `viewport` / `themeColor` out of `metadata`.
-- **L3.** `lib/supabase/client.ts` uses `process.env.NEXT_PUBLIC_SUPABASE_URL!` (non-null assertion) without a runtime check, unlike `server.ts` which validates and throws.
-- **L4.** `lib/utils.ts:9-11` — `hasEnvVars` has a comment marking it as tutorial scaffolding. Remove and replace with startup validation.
-- **L5.** Dev `.env.local` appears in the working tree. Confirm it's gitignored and no secrets leaked — run `git log --all --full-history -- .env.local` to check.
-- **L6.** `components/admin/image-upload.tsx:173` uses `alt="Upload ${index + 1}"` — generic alt text. Use the car title or a caption.
-- **L7.** `next.config.ts` hardcodes the Supabase storage hostname. Move to env var so preview/prod can point at different projects.
-- **L8.** No `NEXT_PUBLIC_SITE_URL` env — `metadataBase` falls back to `http://localhost:3000` in non-Vercel environments.
-- **L9.** Admin lead page doesn't appear to redact PII in logs if logging is ever added — not a current issue, but flag for observability rollout.
-- **L10.** `app/cars/[slug]/not-found.tsx` exists but was not reviewed; verify it uses the shared public layout once #H6 is done.
-
----
-
-## Quick-win priority order
-
-If you only have time for a few fixes, do them in this order:
-
-1. **B1** (profiles RLS) — critical, 5-minute SQL migration
-2. **B2** (filter injection) — critical, ~10 lines
-3. **B4** (disable public signup) — 2 clicks in Supabase dashboard + delete 7 files
-4. **B3** (delete tutorial files) — safe bulk delete, shrinks bundle
-5. **H6** (shared public layout) — unlocks further fixes and kills ~240 lines of duplication
-6. **H2 + H4 + H5** (per-car metadata + sitemap + human slugs) — SEO trifecta for a listings site
-7. **H8** (Radix Dialog for lead form) — accessibility + spam-resistance surface
-8. **H1** (Cache Components) — biggest perf win, needs #H6 done first
-9. **H10** (rate limiting) — before any real traffic
-
----
-
-## Out of scope for this pass
-Not audited in this iteration (pick up next pass):
-- Admin `settings-form`, `cars-table`, `leads-table`, `profile-form`, `lead-status-update` internals
-- `/admin/cars/new`, `/admin/cars/[id]`, `/admin/leads/[id]` server components
-- `/auth/*` flow beyond noting its existence
-- Tailwind config, design token coverage
-- `tsconfig.json` strictness
-- Bundle size measurement (`next build` output)
-- Real browser Lighthouse / Core Web Vitals run
-- Supabase dashboard config (RLS force on, JWT expiry, auth providers)
-
----
-
-*Audit generated 2026-04-11. Findings anchored to file paths + line numbers for reproducibility.*
-
----
-
-# Iteration 2 — extended audit
-
-Adds findings from `/auth/confirm/route.ts`, `components/admin/car-form.tsx` (rest of file), and `components/admin/settings-form.tsx`. New blocking finding B5 is the headline — everything else is incremental.
-
-## [BLOCK] New blocking finding
-
-### B5. Open redirect + reflected error in `/auth/confirm` route handler
-**File:** `app/auth/confirm/route.ts:10,21,24,29`
-
-```ts
-const next = searchParams.get("next") ?? "/";
-// ...
-if (!error) {
-  redirect(next);                                   // <-- user-controlled target
-} else {
-  redirect(`/auth/error?error=${error?.message}`);  // <-- unsanitized interpolation
-}
-// ...
-redirect(`/auth/error?error=No token hash or type`);
-```
-
-Two problems:
-
-1. **Open redirect.** `next` comes straight from the query string. Crafting `/auth/confirm?token_hash=…&type=email&next=https://evil.example/phish` sends the user to `evil.example` immediately after Supabase confirms the OTP — i.e. right when they trust they've just logged in. Classic phishing laundering vector, and because the redirect happens on the real domain after real authentication, it beats email-link URL previewers.
-2. **Reflected content in error path.** `error.message` from Supabase is dropped into the URL with no encoding. Supabase error messages are typically benign but (a) they're not encoded, so a message with `&` or `#` will corrupt the URL and (b) if `/auth/error` ever renders `error` as HTML (it currently doesn't, but the starter template has open paths), this becomes reflected XSS.
-
-This file is Supabase-starter boilerplate and should either be removed entirely when `/auth/*` is consolidated (#B4), or hardened:
-
-**Fix:**
-```ts
-import { createClient } from "@/lib/supabase/server";
-import { type EmailOtpType } from "@supabase/supabase-js";
-import { redirect } from "next/navigation";
-import { type NextRequest } from "next/server";
-
-// Allowlist of safe internal paths
-const SAFE_NEXT = new Set(["/", "/admin", "/admin/login"]);
-
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const token_hash = searchParams.get("token_hash");
-  const type = searchParams.get("type") as EmailOtpType | null;
-  const rawNext = searchParams.get("next") ?? "/";
-  // Reject anything that isn't an internal allowlisted path
-  const next = SAFE_NEXT.has(rawNext) ? rawNext : "/";
-
-  if (!token_hash || !type) {
-    redirect("/auth/error?error=missing_params");
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({ type, token_hash });
-
-  if (error) {
-    console.error("[auth/confirm] verifyOtp failed", error);
-    redirect("/auth/error?error=verification_failed");
-  }
-
-  redirect(next);
-}
-```
-
-Key moves: allowlist `next`, return generic error codes to the client, log the real error server-side, remove the redundant trailing `redirect(...)` by short-circuiting up top. If you delete `/auth/*` per #B4, this all goes away.
-
----
-
-## [MED] New medium findings
-
-### M12. `as any` escape hatches in admin forms
-**Files:** `components/admin/car-form.tsx:213`, `components/admin/settings-form.tsx` (update payload)
+### M9 — Lead form trigger wraps children in a non-semantic `div`
+[components/lead-form-modal.tsx:75](components/lead-form-modal.tsx:75)
 
 ```tsx
-// car-form.tsx:213
-<select
-  value={formData.status}
-  onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
->
+<div className="cursor-pointer" onClick={() => setIsOpen(true)}>
+  {children}
+</div>
 ```
 
-`formData.status` is typed against the DB enum but the raw `<select>` `change` handler widens to `string`, so the author silenced it with `as any`. Same pattern appears in `settings-form` when building the update payload. Each `as any` is a future footgun — if someone adds a new `CarStatus` value, the select options and the type drift silently.
+When `children` is a `<Button>`, this creates a div-on-button click target: keyboard users can focus the inner Button but the outer div has no `role`, `tabIndex`, or key handler. Screen readers see an unlabeled click region. The modal also has no ESC-to-close handler and no focus trap.
 
-**Fix:** Narrow explicitly:
-```tsx
-onChange={(e) => {
-  const v = e.target.value;
-  if (v === 'draft' || v === 'published' || v === 'sold') {
-    setFormData({ ...formData, status: v });
-  }
-}}
-```
-Or define `const CAR_STATUSES = ['draft','published','sold'] as const` and iterate it for both `<option>` rendering and type narrowing.
+**Fix:** use Radix Dialog (already a shadcn dependency) or at minimum change the wrapper to render a proper button, add `onKeyDown` for Escape, and focus-trap the dialog while open.
+
+### M10 — Lead form surfaces raw server errors to end users
+[components/lead-form-modal.tsx:61](components/lead-form-modal.tsx:61)
+
+`setError(err instanceof Error ? err.message : ...)` shows the server action's thrown message verbatim. If DynamoDB throttles or the item is rejected, the public user sees `"ValidationException: ..."`. Prefer a generic "Something went wrong. Please try again." with the detail logged server-side.
+
+### L7 — Modal lacks ESC-to-close and focus trap
+[components/lead-form-modal.tsx:79](components/lead-form-modal.tsx:79)
+
+Ties into M9. Pressing Escape or Tab'ing out of the modal does nothing. Radix Dialog handles both for free.
+
+### L8 — `presignAndPut` PUT lacks explicit `Content-Length`
+[components/admin/image-upload.tsx:39](components/admin/image-upload.tsx:39)
+
+Modern browsers auto-set `content-length` for File bodies, so this works in practice. But the presigned URL was signed with the exact `ContentLength`, so if any proxy/extension strips or mutates it, the PUT returns a cryptic `Upload failed (403)`. Harmless until it isn't.
+
+### L9 — Home page `featuredCars` sorted on every render instead of at query time
+[app/page.tsx:15](app/page.tsx:15)
+
+Trivial cost at current scale, but will compound with H3/H6. Once there's a `status-updated_at-index` GSI (see H3), the home page can query the top 6 directly.
 
 ---
 
-### M13. `settings-form` flattens `hours_json` into 7 string fields then reassembles
-**File:** `components/admin/settings-form.tsx:45-51,63-71`
+## Blocker verification
 
-```ts
-hours_monday: (settings.hours_json as Record<string, string>)?.monday || '',
-hours_tuesday: (settings.hours_json as Record<string, string>)?.tuesday || '',
-// … 5 more
-```
-
-```ts
-const hours_json = {
-  monday: formData.hours_monday,
-  tuesday: formData.hours_tuesday,
-  // … 5 more
-};
-```
-
-Two sources of truth for the same data, and every new field (e.g. holiday hours) requires edits in five places (type, initial state, JSX, submit payload, render). Compounds with #M10 (JSONB key-order issue) because this is the exact path that writes those keys.
-
-**Fix:** Keep state shape the same as DB shape.
-```ts
-const DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const;
-type Day = typeof DAYS[number];
-
-const [hours, setHours] = useState<Record<Day, string>>(() => {
-  const src = (settings.hours_json ?? {}) as Partial<Record<Day, string>>;
-  return Object.fromEntries(DAYS.map(d => [d, src[d] ?? ''])) as Record<Day, string>;
-});
-// on submit: .update({ ..., hours_json: hours })
-// in JSX: {DAYS.map(d => <DayRow key={d} day={d} value={hours[d]} onChange={…} />)}
-```
+- **B1** — confirmed by AWS docs: `Scan` applies `Limit` before `FilterExpression`. With `Limit: 1` the Scan reads one item, applies the filter, and returns zero results when the first scanned item isn't the requested slug. The only safe resolutions are removing `Limit` or switching to a `Query` on a slug GSI.
+- **B2** — confirmed by reading [components/admin/image-upload.tsx:34](components/admin/image-upload.tsx:34): the client parses the response as JSON and throws on failure; a 307 redirect with an HTML body yields `err.error ?? 'Failed to presign upload'` where `err` came from a failed JSON parse — the user sees a misleading generic error instead of "sign in again."
+- **B3** — confirmed: `loginAction` only persists `idToken`. No refresh flow exists anywhere in the repo; grep for `RefreshToken` returns only the line in [lib/aws/cognito.ts:79](lib/aws/cognito.ts:79) that returns it from `loginWithPassword`. Nothing consumes the return value's `refreshToken`.
 
 ---
 
-### M14. `car-form` `description` has no max length or rendering contract
-**File:** `components/admin/car-form.tsx:251-256`
+## Third-pass additions: dead code & deps
 
-```tsx
-<textarea
-  className="… min-h-[200px] …"
-  value={formData.description}
-  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-/>
-```
+Build health: `npm audit --production` reports **0 vulnerabilities** across 187 prod deps; `tsc --noEmit` is clean. The findings here are weight, not security.
 
-No `maxLength`, no character counter, no markdown vs plain-text decision documented. The render side (`app/cars/[slug]/page.tsx`) uses `whitespace-pre-line` which is fine today, but nothing stops an admin from pasting 50KB of marketing copy that blows up the page weight and LCP. Settings `about_text` has the same issue.
+### L10 — Unused UI primitives (never imported) — **FIXED**
+[components/ui/skeleton.tsx](components/ui/skeleton.tsx), [components/ui/dropdown-menu.tsx](components/ui/dropdown-menu.tsx), [components/ui/separator.tsx](components/ui/separator.tsx)
 
-**Fix:** Add `maxLength={4000}` + a live counter. Store long-form content in a dedicated table if marketing pages are ever needed.
+Each of these files is referenced only by itself. The migration deleted `checkbox.tsx` for the same reason but missed three siblings. Delete them along with their unused `@radix-ui/react-dropdown-menu` and `@radix-ui/react-separator` runtime deps.
 
----
+### L11 — `next-themes` declared but never used — **FIXED**
+[package.json:27](package.json:27)
 
-### M15. Admin forms lose work silently on accidental navigation
-**Files:** `components/admin/car-form.tsx`, `components/admin/settings-form.tsx`
+Grep finds zero `from 'next-themes'` imports. Leftover from the original Vercel/shadcn template. The site is dark-mode-only; remove the dep.
 
-No `beforeunload` handler, no `router.events` guard, no dirty-state tracking. A stray back-button press or accidental Cmd-W after 10 minutes of data entry vaporizes the form. Not a security issue but an admin-UX papercut that will bite the first time a staffer is entering a long description.
+### L12 — Working tree drift unrelated to migration
+[git status]
 
-**Fix (minimal):**
-```ts
-useEffect(() => {
-  const handler = (e: BeforeUnloadEvent) => {
-    if (isDirty) { e.preventDefault(); e.returnValue = ''; }
-  };
-  window.addEventListener('beforeunload', handler);
-  return () => window.removeEventListener('beforeunload', handler);
-}, [isDirty]);
-```
-Where `isDirty` is a simple `JSON.stringify(formData) !== JSON.stringify(initialData)` memo.
+Uncommitted modifications to `.claude/ralph-loop.local.md` and `.gitignore` (the latter shows additions for `.ralph/` and `.worktrees/`). These are likely intentional infra config, but they predate this audit and should be either committed with a clear message or stashed before the next deployment.
+
+### L14 — ESLint error in `next-env.d.ts` blocks `npm run lint` — **FIXED**
+[next-env.d.ts](next-env.d.ts)
+
+`@typescript-eslint/triple-slash-reference` fails on the Next.js 15 auto-generated types reference. CI running `npm run lint` will fail. Next 15 requires this triple-slash; the only fix is to add `next-env.d.ts` to the ESLint ignore list (in `eslint.config.*` or `.eslintignore`).
+
+### L13 — `app/admin/cars/new/page.tsx` imports lucide `Car` icon as bare identifier — **FIXED**
+[app/admin/cars/new/page.tsx:3](app/admin/cars/new/page.tsx:3)
+
+`import { Car } from 'lucide-react'` shadows the type name `Car` from `@/lib/types` in any future code added to this file. Currently no conflict, but a footgun — alias the import (`Car as CarIcon`) as is done in [app/cars/[slug]/page.tsx:2](app/cars/[slug]/page.tsx:2).
 
 ---
 
-### M16. `settings-form` success banner uses `setTimeout`, not state driven
-**File:** `components/admin/settings-form.tsx:91-92`
+## Suggested fix order
 
-```ts
-setSuccess(true);
-setTimeout(() => setSuccess(false), 3000);
-```
-
-If the component unmounts inside the 3s window (navigation, logout) the timer fires on a dead component. React will ignore the state update in practice but this still produces console warnings in strict mode, and it's the wrong primitive. Use an effect with a cleanup:
-
-```ts
-useEffect(() => {
-  if (!success) return;
-  const t = setTimeout(() => setSuccess(false), 3000);
-  return () => clearTimeout(t);
-}, [success]);
-```
-
-Same pattern likely appears in other admin components — grep for `setTimeout` in `components/admin/`.
-
----
-
-## [LOW] New low findings
-
-- **L11.** `app/auth/confirm/route.ts:9` — `type` is cast `as EmailOtpType | null` without validating it's one of the allowed string literals. Supabase will reject junk at runtime but explicit validation is clearer.
-- **L12.** `car-form.tsx` and `settings-form.tsx` use `setError(err instanceof Error ? err.message : 'An error occurred')` — same pattern as #M5. Consolidate into a `formatError(err)` helper.
-- **L13.** `settings-form.tsx:101` — form uses `space-y-6` with nested `Card` components; the `Card` already has internal padding, causing inconsistent gaps vs `car-form` which uses the same pattern. Minor visual drift.
-- **L14.** `car-form.tsx:117` — double blank line between two JSX blocks; no functional issue but flags that there's no Prettier config enforcing a style.
-
----
-
-## Updated quick-win order
-
-Insert **B5** between B2 and B4:
-
-1. **B1** (profiles RLS)
-2. **B2** (filter injection)
-3. **B5** (open redirect + reflected error) — ~10 lines, high phishing risk
-4. **B4** (disable public signup, delete /auth/*)
-5. **B3** (delete tutorial files)
-6. **H6 → H2/H4/H5 → H8 → H1 → H10** (unchanged from iteration 1)
-
-Note that fixing **B4** (deleting `/auth/*`) also deletes the file behind **B5**, so if you go straight to B4 you can skip B5. If you're keeping `/auth/confirm` for OTP magic-links, B5 is mandatory.
-
----
-
-## Still out of scope
-Same buckets as iteration 1, minus what was covered here. Remaining unaudited:
-- `components/admin/cars-table.tsx`, `leads-table.tsx`, `profile-form.tsx`, `lead-status-update.tsx`
-- `app/admin/cars/new/page.tsx`, `app/admin/cars/[id]/page.tsx`, `app/admin/leads/[id]/page.tsx`, `app/admin/page.tsx`
-- `/auth/login`, `/auth/sign-up`, `/auth/forgot-password`, `/auth/update-password`, `/auth/error`, `/auth/sign-up-success` internals
-- `tsconfig.json` strictness, `eslint.config.mjs`, `tailwind.config.ts`, `components.json`
-- Actual `next build` bundle measurement, Lighthouse run, Supabase dashboard review
-
----
-
-*Iteration 2 appended 2026-04-11. New findings: 1 blocking (B5), 5 medium (M12–M16), 4 low (L11–L14). Running totals: 5 [BLOCK] · 10 [HIGH] · 16 [MED] · 14 [LOW] = 45 findings.*
+1. B1 — slug Scan bug (5-line fix, breaks production)
+2. B2 — API 401 vs redirect (10-line fix, breaks uploads silently)
+3. H5 — verify Cognito app-client secret config (deployment, not code)
+4. H4 — MFA challenge handling OR document MFA must stay off
+5. H1, H2 — WAF + CAPTCHA before any public launch
+6. B3 — refresh token / session lifetime
+7. H3 — GSIs and query migration (do once, before traffic grows)
+8. M-series — batch as a hardening pass

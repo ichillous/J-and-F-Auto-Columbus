@@ -1,61 +1,26 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useTransition } from 'react';
+import { User as UserIcon, Mail, Shield, CheckCircle, AlertCircle } from 'lucide-react';
+
+import { updateProfileAction } from '@/lib/actions/auth';
+import type { AdminSession } from '@/lib/aws/cognito';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { createClient } from '@/lib/supabase/client';
-import { User as UserIcon, Mail, Shield, CheckCircle, AlertCircle } from 'lucide-react';
-import type { Profile } from '@/lib/types';
-import type { User } from '@supabase/supabase-js';
 
 interface ProfileFormProps {
-  user: User;
-  profile: Profile;
+  session: AdminSession;
 }
 
-export function ProfileForm({ user, profile }: ProfileFormProps) {
-  const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export function ProfileForm({ session }: ProfileFormProps) {
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-
-  const [formData, setFormData] = useState({
-    full_name: profile.full_name || '',
-    email: user.email || '',
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setError(null);
-    setSuccess(false);
-
-    try {
-      const supabase = createClient();
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          full_name: formData.full_name || null,
-        })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
-
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const [fullName, setFullName] = useState(session.fullName ?? '');
 
   return (
     <div className="space-y-6">
@@ -67,7 +32,22 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form
+            action={(formData) => {
+              setError(null);
+              setSuccess(false);
+              startTransition(async () => {
+                const result = await updateProfileAction(formData);
+                if (result?.error) {
+                  setError(result.error);
+                } else if (result?.success) {
+                  setSuccess(true);
+                  setTimeout(() => setSuccess(false), 3000);
+                }
+              });
+            }}
+            className="space-y-6"
+          >
             <div>
               <Label htmlFor="full_name" className="flex items-center gap-1.5">
                 <UserIcon className="h-4 w-4 text-muted-foreground" />
@@ -75,11 +55,10 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
               </Label>
               <Input
                 id="full_name"
+                name="full_name"
                 placeholder="Enter your full name"
-                value={formData.full_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, full_name: e.target.value })
-                }
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
               />
             </div>
 
@@ -88,13 +67,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
                 <Mail className="h-4 w-4 text-muted-foreground" />
                 Email
               </Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                disabled
-                className="bg-muted/50"
-              />
+              <Input id="email" type="email" value={session.email} disabled className="bg-muted/50" />
               <p className="text-sm text-muted-foreground mt-2">
                 Email cannot be changed here. Contact an administrator if you need to change your email.
               </p>
@@ -107,11 +80,11 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
               </Label>
               <div className="mt-2">
                 <Badge
-                  variant={profile.role === 'admin' ? 'accent' : 'secondary'}
+                  variant={session.role === 'admin' ? 'accent' : 'secondary'}
                   size="default"
                   className="capitalize"
                 >
-                  {profile.role}
+                  {session.role}
                 </Badge>
               </div>
             </div>
@@ -139,8 +112,8 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
             )}
 
             <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={isSubmitting} variant="accent" size="lg">
-                {isSubmitting ? (
+              <Button type="submit" disabled={isPending} variant="accent" size="lg">
+                {isPending ? (
                   <>
                     <Spinner size="sm" className="mr-2" />
                     Saving...
@@ -156,4 +129,3 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
     </div>
   );
 }
-

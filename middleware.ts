@@ -1,13 +1,20 @@
-import { type NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
-import { updateSession } from '@/lib/supabase/proxy';
+const SESSION_COOKIE = 'jfauto_session';
 
-export async function middleware(request: NextRequest) {
-  return updateSession(request);
+export function middleware(request: NextRequest) {
+  if (
+    request.nextUrl.pathname.startsWith('/admin') &&
+    !request.nextUrl.pathname.startsWith('/admin/login') &&
+    !request.cookies.get(SESSION_COOKIE)
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/admin/login';
+    return NextResponse.redirect(url);
+  }
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/admin/:path*'],
 };

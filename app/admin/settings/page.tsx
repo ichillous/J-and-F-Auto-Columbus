@@ -1,28 +1,15 @@
-import { createClient } from '@/lib/supabase/server';
-import { requireAdmin } from '@/lib/auth';
-import { SettingsForm } from '@/components/admin/settings-form';
-import { unstable_noStore } from 'next/cache';
 import { Settings } from 'lucide-react';
+
+import { requireAdmin } from '@/lib/auth';
+import { getSettings } from '@/lib/data';
+import { SettingsForm } from '@/components/admin/settings-form';
 import { AdminPageHeader } from '@/components/admin-page-header';
+
+export const dynamic = 'force-dynamic';
 
 export default async function AdminSettingsPage() {
   await requireAdmin();
-  unstable_noStore();
-  const supabase = await createClient();
-
-  const { data: settings } = await supabase
-    .from('settings')
-    .select('*')
-    .single();
-
-  if (!settings) {
-    return (
-      <div className="space-y-6">
-        <AdminPageHeader title="Dealership Settings" icon={<Settings className="h-8 w-8 text-accent" />} />
-        <p className="text-destructive font-medium">Settings not found</p>
-      </div>
-    );
-  }
+  const settings = await getSettings();
 
   return (
     <div className="space-y-6">

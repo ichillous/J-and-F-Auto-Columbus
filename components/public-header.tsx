@@ -1,10 +1,11 @@
 import Link from 'next/link';
-import { Globe, Menu } from 'lucide-react';
+import { Menu } from 'lucide-react';
 
 import { ClientOnly } from '@/components/client-only';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 
 interface PublicHeaderProps {
   currentPath?: string;
@@ -44,10 +45,6 @@ export function PublicHeader({ currentPath = '/' }: PublicHeaderProps) {
         </nav>
 
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" className="hidden md:inline-flex">
-            <Globe className="h-4 w-4" />
-            <span className="sr-only">Location settings</span>
-          </Button>
           <Button asChild variant="accent" size="default" className="hidden min-w-[120px] sm:inline-flex">
             <Link href="/contact">Inquire</Link>
           </Button>
@@ -96,8 +93,4 @@ export function PublicHeader({ currentPath = '/' }: PublicHeaderProps) {
       </div>
     </header>
   );
-}
-
-function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(' ');
 }
