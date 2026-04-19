@@ -81,13 +81,35 @@ export const getCarBySlug = unstable_cache(getCarBySlugRaw, ['car-by-slug'], {
 
 export type CarInput = Omit<Car, 'id' | 'created_at' | 'updated_at'> & { id?: string };
 
+async function findSlugCollision(slug: string, excludeId?: string): Promise<boolean> {
+  const result = await ddb().send(
+    new ScanCommand({
+      TableName: awsEnv.carsTable(),
+      FilterExpression: 'slug = :slug',
+      ExpressionAttributeValues: { ':slug': slug },
+    }),
+  );
+  return (result.Items ?? []).some((item) => (item as Car).id !== excludeId);
+}
+
+async function ensureUniqueSlug(slug: string, excludeId?: string): Promise<string> {
+  let candidate = slug;
+  for (let i = 0; i < 5; i++) {
+    if (!(await findSlugCollision(candidate, excludeId))) return candidate;
+    candidate = `${slug}-${randomUUID().slice(0, 6)}`;
+  }
+  throw new Error('Could not generate a unique slug');
+}
+
 export async function upsertCar(input: CarInput): Promise<Car> {
   const id = input.id ?? randomUUID();
   const existing = input.id ? await getCarById(input.id) : null;
+  const slug = await ensureUniqueSlug(input.slug, input.id);
   const item = withTimestamps(
     {
       ...input,
       id,
+      slug,
       created_at: existing?.created_at ?? now(),
     },
     !existing,
