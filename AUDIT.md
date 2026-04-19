@@ -8,6 +8,16 @@
 
 ---
 
+## Status overview
+
+**Resolved in code (this audit pass):** B1, B2, M2, M3, M4, M5, M6, M7 (HSTS), M8, M9, M10, H6, L1, L4, L5, L7, L9 (partial), L10, L11, L13, L14
+**Withdrawn:** L2, L8 (platform limits)
+**Open — needs design call:** B3 (refresh token strategy), M1 (magic-byte sniffing approach), M7 (CSP per-domain)
+**Open — infra / IaC, not code:** H1, H2 (rate limit / WAF), H3 (DynamoDB GSIs), H4 (MFA flow), H5 (Cognito client secret docs), L12 (oncall checklist)
+**Open — minor polish:** L3 (`requireRole` UX in actions), L6 (working-tree drift)
+
+---
+
 ## [BLOCK] Issues
 
 ### B1 — `getCarBySlug` may return `null` for valid slugs — **FIXED**
@@ -94,7 +104,7 @@ The route validates `contentType` is in the allowlist, then uses that exact valu
 
 **Fix:** add server-side post-upload validation (Lambda triggered on `s3:ObjectCreated:*` that sniffs magic bytes and quarantines mismatches), or do upload-then-validate-then-publish via two-stage keys.
 
-### M2 — `slug` uniqueness is not enforced
+### M2 — `slug` uniqueness is not enforced — **FIXED**
 [lib/data.ts:68](lib/data.ts:68), [lib/actions/cars.ts:18](lib/actions/cars.ts:18)
 
 Two cars with the same generated slug both write happily. `getCarBySlug` will then return whichever one Scan finds first, with no indication to the admin that they collided. Especially likely with the slugify fallback when `make/model/year` repeats.
@@ -122,21 +132,21 @@ Name is capped at 200, but `message` (potentially huge), `phone`, and `preferred
 
 **Fix:** clamp `message` to ~2000 chars, validate `phone` against a permissive regex, parse `preferred_datetime` with `new Date(...)` and reject `Number.isNaN(d.getTime())`.
 
-### M6 — `unstable_noStore()` on every public page defeats caching
+### M6 — `unstable_noStore()` on every public page defeats caching — **FIXED**
 [app/cars/[slug]/page.tsx:19](app/cars/[slug]/page.tsx:19)
 
 Every car detail page hits Scan-via-`getCarBySlug` on every request. Combined with H1/H3, this is the most expensive path in the system. Inventory listings likely have the same issue.
 
 **Fix:** remove `unstable_noStore()` and switch to `revalidate = 60` (or tag-based with `revalidateTag` called from `saveCarAction`). Most car-detail content changes minutes-scale at most.
 
-### M7 — No CSP, no HSTS
+### M7 — No CSP, no HSTS — **PARTIAL** (HSTS added; CSP still pending)
 [next.config.ts](next.config.ts)
 
 Headers configured: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`. Missing: `Content-Security-Policy` and `Strict-Transport-Security`. Modern security baselines expect both.
 
 **Fix:** add HSTS (`max-age=63072000; includeSubDomains; preload` once you're confident), and a starter CSP — `default-src 'self'; img-src 'self' https://<s3-or-cloudfront-domain> data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'`.
 
-### M8 — `updateProfileAction` assumes Cognito username == email
+### M8 — `updateProfileAction` assumes Cognito username == email — **FIXED**
 [lib/actions/auth.ts:44](lib/actions/auth.ts:44)
 
 `updateUserFullName(session.email, ...)` calls `AdminUpdateUserAttributes` with `Username: email`. This works only when the user pool is configured with email as the alias/username. If usernames are UUIDs (Cognito's other default), this throws "User does not exist". Should pass `session.sub` and configure the pool so `AdminUpdateUserAttributes` accepts sub. Also no length/sanity validation on `fullName`.
@@ -147,12 +157,12 @@ Headers configured: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Polic
 
 ## [LOW] Issues
 
-### L1 — Two registered MCP integrations still reference Supabase
+### L1 — Two registered MCP integrations still reference Supabase — **FIXED**
 [.mcp.json](.mcp.json)
 
 Supabase MCP server is still wired up in the project's MCP config even though Supabase is fully removed from the runtime. Harmless but misleading; remove if no longer needed.
 
-### L2 — `metadataBase` only set when `NEXT_PUBLIC_SITE_URL` is present
+### L2 — `metadataBase` only set when `NEXT_PUBLIC_SITE_URL` is present — **NOT REPRODUCING** (already falls back to `http://localhost:3000` via `resolveMetadataBase()`)
 [app/layout.tsx](app/layout.tsx)
 
 OG/twitter image URLs become relative when the env var is missing in non-prod, which some scrapers reject. Falling back to `https://localhost` or the Amplify default URL would be safer than silent absence.
@@ -162,14 +172,14 @@ OG/twitter image URLs become relative when the env var is missing in non-prod, w
 
 When a server action calls `requireRole` and fails, the redirect bubbles out of the action call — the form submission "succeeds" but the page navigates. Surprising UX, especially for `updateLeadStatusAction`. Throwing an error and letting the action return `{ error: 'Forbidden' }` would be cleaner.
 
-### L4 — `batchGetCarsByIds` ignores `UnprocessedKeys`
+### L4 — `batchGetCarsByIds` ignores `UnprocessedKeys` — **FIXED**
 [lib/data.ts:87](lib/data.ts:87)
 
 DynamoDB `BatchGetItem` may return some keys as unprocessed under throttling. The current code drops them silently — the leads page will show "—" for cars that actually exist.
 
 **Fix:** loop on `result.UnprocessedKeys` with exponential backoff until empty.
 
-### L5 — `presignUpload` allows arbitrary `carId` strings
+### L5 — `presignUpload` allows arbitrary `carId` strings — **FIXED**
 [lib/aws/s3.ts:30](lib/aws/s3.ts:30)
 
 The carId becomes part of the S3 key with no sanitization. An admin passing `../foo` produces a non-traversal-but-confusing key. Low impact, admin-gated, but worth a regex check (`/^[a-zA-Z0-9-]{1,64}$/`).
@@ -209,14 +219,14 @@ These are not code bugs but deployment-time requirements implied by the codebase
 
 ## Second-pass additions
 
-### H6 — Home page and inventory both Scan DynamoDB on every request
+### H6 — Home page and inventory both Scan DynamoDB on every request — **FIXED**
 [app/page.tsx:13](app/page.tsx:13), [app/inventory/page.tsx:73](app/inventory/page.tsx:73)
 
 Both public pages call `unstable_noStore()` and then `listPublishedCars()` (full Scan). Every landing page view = one DynamoDB Scan of the cars table. With concurrent crawlers, bots, and previews this becomes the dominant DynamoDB cost long before real traffic arrives, and homepage TTFB is bounded by the Scan round-trip.
 
 **Fix:** replace `unstable_noStore()` with `export const revalidate = 60` (or tag-based invalidation triggered by `saveCarAction` / `deleteCarAction`). The inventory page's filters are applied in-memory from the already-fetched list, so caching upstream gives the whole page a free ride.
 
-### M9 — Lead form trigger wraps children in a non-semantic `div`
+### M9 — Lead form trigger wraps children in a non-semantic `div` — **FIXED**
 [components/lead-form-modal.tsx:75](components/lead-form-modal.tsx:75)
 
 ```tsx
@@ -229,22 +239,22 @@ When `children` is a `<Button>`, this creates a div-on-button click target: keyb
 
 **Fix:** use Radix Dialog (already a shadcn dependency) or at minimum change the wrapper to render a proper button, add `onKeyDown` for Escape, and focus-trap the dialog while open.
 
-### M10 — Lead form surfaces raw server errors to end users
+### M10 — Lead form surfaces raw server errors to end users — **FIXED**
 [components/lead-form-modal.tsx:61](components/lead-form-modal.tsx:61)
 
 `setError(err instanceof Error ? err.message : ...)` shows the server action's thrown message verbatim. If DynamoDB throttles or the item is rejected, the public user sees `"ValidationException: ..."`. Prefer a generic "Something went wrong. Please try again." with the detail logged server-side.
 
-### L7 — Modal lacks ESC-to-close and focus trap
+### L7 — Modal lacks ESC-to-close and focus trap — **FIXED** (Radix Dialog provides both)
 [components/lead-form-modal.tsx:79](components/lead-form-modal.tsx:79)
 
 Ties into M9. Pressing Escape or Tab'ing out of the modal does nothing. Radix Dialog handles both for free.
 
-### L8 — `presignAndPut` PUT lacks explicit `Content-Length`
+### L8 — `presignAndPut` PUT lacks explicit `Content-Length` — **WONTFIX** (browser-forbidden header; auto-set from File body)
 [components/admin/image-upload.tsx:39](components/admin/image-upload.tsx:39)
 
 Modern browsers auto-set `content-length` for File bodies, so this works in practice. But the presigned URL was signed with the exact `ContentLength`, so if any proxy/extension strips or mutates it, the PUT returns a cryptic `Upload failed (403)`. Harmless until it isn't.
 
-### L9 — Home page `featuredCars` sorted on every render instead of at query time
+### L9 — Home page `featuredCars` sorted on every render instead of at query time — **PARTIAL** (live inventory count now uses full set; sort still in-page until status-updated_at GSI exists per H3)
 [app/page.tsx:15](app/page.tsx:15)
 
 Trivial cost at current scale, but will compound with H3/H6. Once there's a `status-updated_at-index` GSI (see H3), the home page can query the top 6 directly.

@@ -8,7 +8,7 @@ import { getSettings } from '@/lib/data';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 
-export const revalidate = 300;
+export const dynamic = 'force-dynamic';
 
 export default async function ContactPage() {
   const settings = await getSettings();

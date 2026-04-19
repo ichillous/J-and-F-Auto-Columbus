@@ -2,11 +2,18 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 import { submitLeadAction } from '@/lib/actions/leads';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -72,122 +79,117 @@ export function LeadFormModal({ carId, carTitle, type, children }: LeadFormModal
       : 'Contact J&F Auto';
 
   return (
-    <>
-      <div className="cursor-pointer" onClick={() => setIsOpen(true)}>
-        {children}
-      </div>
-
-      {isOpen ? (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-[#020406]/78 px-4 py-6 backdrop-blur-md"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setIsOpen(false)}
-        >
-          <Card className="w-full max-w-xl rounded-[1.75rem]" onClick={(e) => e.stopPropagation()}>
-            <CardHeader className="relative border-b border-white/8 pb-5">
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="absolute right-6 top-6 rounded-full border border-white/10 bg-white/[0.04] p-2 text-brand-silver hover:border-white/18 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-                <span className="sr-only">Close</span>
-              </button>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent>
+        <Card className="rounded-[1.75rem]">
+          <CardHeader className="border-b border-white/8 pb-5">
+            <DialogTitle asChild>
               <CardTitle>{title}</CardTitle>
-              {carTitle ? <CardDescription>Vehicle: {carTitle}</CardDescription> : null}
-            </CardHeader>
-            <CardContent className="pt-6">
-              {success ? (
-                <div className="flex flex-col items-center gap-4 py-8 text-center">
-                  <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 p-4">
-                    <CheckCircle2 className="h-8 w-8 text-emerald-300" />
+            </DialogTitle>
+            {carTitle ? (
+              <DialogDescription asChild>
+                <CardDescription>Vehicle: {carTitle}</CardDescription>
+              </DialogDescription>
+            ) : null}
+          </CardHeader>
+          <CardContent className="pt-6">
+            {success ? (
+              <div className="flex flex-col items-center gap-4 py-8 text-center">
+                <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 p-4">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-300" />
+                </div>
+                <div className="space-y-2">
+                  <p className="font-display text-3xl text-white">Inquiry Sent</p>
+                  <p className="text-sm leading-7 text-brand-dim">
+                    Your lead was submitted successfully.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Name</Label>
+                    <Input
+                      id="name"
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-2">
-                    <p className="font-display text-3xl text-white">Inquiry Sent</p>
-                    <p className="text-sm leading-7 text-brand-dim">
-                      Your lead was submitted successfully.
-                    </p>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    />
                   </div>
                 </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Name</Label>
-                      <Input
-                        id="name"
-                        required
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        required
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      />
-                    </div>
-                  </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
+                </div>
+
+                {type === 'test_drive' ? (
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
+                    <Label htmlFor="preferred_datetime">Preferred Date &amp; Time</Label>
                     <Input
-                      id="phone"
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      id="preferred_datetime"
+                      type="datetime-local"
+                      value={formData.preferred_datetime}
+                      onChange={(e) => setFormData({ ...formData, preferred_datetime: e.target.value })}
                     />
                   </div>
+                ) : null}
 
-                  {type === 'test_drive' ? (
-                    <div className="space-y-2">
-                      <Label htmlFor="preferred_datetime">Preferred Date &amp; Time</Label>
-                      <Input
-                        id="preferred_datetime"
-                        type="datetime-local"
-                        value={formData.preferred_datetime}
-                        onChange={(e) => setFormData({ ...formData, preferred_datetime: e.target.value })}
-                      />
-                    </div>
-                  ) : null}
+                <div className="space-y-2">
+                  <Label htmlFor="message">Message</Label>
+                  <Textarea
+                    id="message"
+                    maxLength={2000}
+                    value={formData.message}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                  />
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="message">Message</Label>
-                    <Textarea
-                      id="message"
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    />
+                {error ? (
+                  <div className="rounded-[1.25rem] border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
+                    <span className="inline-flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      {error}
+                    </span>
                   </div>
+                ) : null}
 
-                  {error ? (
-                    <div className="rounded-[1.25rem] border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
-                      <span className="inline-flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4" />
-                        {error}
-                      </span>
-                    </div>
-                  ) : null}
-
-                  <div className="flex flex-col gap-3 pt-2 sm:flex-row">
-                    <Button type="button" variant="outline" size="lg" className="sm:flex-1" onClick={() => setIsOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="accent" size="lg" className="sm:flex-1" disabled={isSubmitting}>
-                      {isSubmitting ? 'Submitting...' : 'Submit Inquiry'}
-                    </Button>
-                  </div>
-                </form>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-    </>
+                <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="sm:flex-1"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="accent" size="lg" className="sm:flex-1" disabled={isSubmitting}>
+                    {isSubmitting ? 'Submitting...' : 'Submit Inquiry'}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </DialogContent>
+    </Dialog>
   );
 }

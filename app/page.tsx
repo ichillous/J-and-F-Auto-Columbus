@@ -12,10 +12,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   const [settings, allPublished] = await Promise.all([getSettings(), listPublishedCars()]);
-  const featuredCars = [...allPublished]
+  const featuredCars = allPublished
+    .slice()
     .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
     .slice(0, 6);
-  const liveInventoryCount = featuredCars.length;
+  const liveInventoryCount = allPublished.length;
 
   return (
     <PublicShell currentPath="/" settings={settings}>

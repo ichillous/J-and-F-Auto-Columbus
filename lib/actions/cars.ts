@@ -1,9 +1,9 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 
 import { requireAdminOrStaff } from '@/lib/auth';
-import { upsertCar, deleteCar, type CarInput } from '@/lib/data';
+import { upsertCar, deleteCar, CACHE_TAGS, type CarInput } from '@/lib/data';
 import type { Car } from '@/lib/types';
 
 function slugify(input: string): string {
@@ -19,6 +19,7 @@ export async function saveCarAction(input: CarInput): Promise<{ id: string }> {
   await requireAdminOrStaff();
   const slug = input.slug?.trim() || slugify(`${input.year}-${input.make}-${input.model}-${input.trim ?? ''}`);
   const car = await upsertCar({ ...input, slug });
+  revalidateTag(CACHE_TAGS.publishedCars);
   revalidatePath('/admin/cars');
   revalidatePath('/inventory');
   revalidatePath(`/cars/${car.slug}`);
@@ -28,6 +29,7 @@ export async function saveCarAction(input: CarInput): Promise<{ id: string }> {
 export async function deleteCarAction(id: string): Promise<void> {
   await requireAdminOrStaff();
   await deleteCar(id);
+  revalidateTag(CACHE_TAGS.publishedCars);
   revalidatePath('/admin/cars');
   revalidatePath('/inventory');
 }
