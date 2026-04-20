@@ -44,9 +44,15 @@ export async function verifySessionToken(idToken: string): Promise<AdminSession 
       console.error('verifySessionToken: missing or invalid custom:role claim', { sub: payload.sub });
       return null;
     }
+    const email = String(payload.email ?? '').toLowerCase();
+    const allowed = awsEnv.adminAllowedEmail();
+    if (allowed && email !== allowed) {
+      console.error('verifySessionToken: email not in allowlist', { email });
+      return null;
+    }
     return {
       sub: String(payload.sub),
-      email: String(payload.email ?? ''),
+      email,
       fullName: typeof payload.name === 'string' ? payload.name : null,
       role,
     };

@@ -23,4 +23,5 @@ export const awsEnv = {
   },
   cognitoUserPoolId: () => required('COGNITO_USER_POOL_ID'),
   cognitoClientId: () => required('COGNITO_CLIENT_ID'),
+  adminAllowedEmail: () => process.env.ADMIN_ALLOWED_EMAIL?.trim().toLowerCase() || null,
 };
