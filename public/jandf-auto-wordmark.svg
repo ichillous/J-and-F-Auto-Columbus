@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120" role="img" aria-label="J&amp;F Auto">
+  <style>
+    .brand { font-family: 'Barlow Condensed', 'Oswald', 'Arial Narrow', sans-serif; fill: currentColor; }
+    .mark  { font-weight: 700; font-size: 88px; letter-spacing: 2px; }
+    .amp   { font-weight: 300; font-style: italic; font-size: 88px; }
+    .tag   { font-weight: 500; font-size: 22px; letter-spacing: 14px; }
+  </style>
+  <g class="brand">
+    <text x="0"   y="78" class="mark">J</text>
+    <text x="42"  y="78" class="amp">&amp;</text>
+    <text x="92"  y="78" class="mark">F</text>
+    <line x1="148" y1="42" x2="148" y2="78" stroke="currentColor" stroke-width="2"/>
+    <text x="164" y="78" class="tag">AUTO</text>
+  </g>
+</svg>

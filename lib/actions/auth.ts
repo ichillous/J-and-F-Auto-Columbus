@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { loginWithPassword, updateUserFullName } from '@/lib/aws/cognito';
+import { awsEnv } from '@/lib/aws/env';
 import { requireAuth, SESSION_COOKIE } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 
@@ -11,6 +12,12 @@ export async function loginAction(formData: FormData): Promise<{ error?: string 
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const password = String(formData.get('password') ?? '');
   if (!email || !password) return { error: 'Email and password are required.' };
+
+  const allowed = awsEnv.adminAllowedEmail();
+  if (allowed && email !== allowed) {
+    console.error('login rejected: email not in allowlist', { email });
+    return { error: 'Invalid email or password.' };
+  }
 
   let result;
   try {
