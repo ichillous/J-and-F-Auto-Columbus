@@ -6,6 +6,11 @@ frontend:
         - npm ci --cache .npm --prefer-offline
     build:
       commands:
+        # Expose Amplify Console env vars to the Next.js SSR runtime by
+        # writing them into .env.production before `next build`. Amplify's
+        # SSR compute does not inherit Console env vars at request time,
+        # so anything read via process.env.* must be baked in here.
+        - env | grep -E '^(AWS_REGION|COGNITO_|JFAUTO_|ADMIN_ALLOWED_EMAIL|NEXT_PUBLIC_)' >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next
