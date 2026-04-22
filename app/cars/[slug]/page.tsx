@@ -105,18 +105,18 @@ export default async function CarDetailPage({
                   <div className="space-y-3">
                     <LeadFormModal carId={car.id} carTitle={car.title} type="request_info">
                       <Button variant="accent" size="xl" className="w-full">
-                        Request More Info
+                        Ask About This Car
                       </Button>
                     </LeadFormModal>
                     <LeadFormModal carId={car.id} carTitle={car.title} type="test_drive">
                       <Button variant="outline" size="xl" className="w-full">
-                        Schedule Test Drive
+                        Schedule a Test Drive
                       </Button>
                     </LeadFormModal>
                   </div>
                 ) : (
                   <div className="rounded-[1.25rem] border border-destructive/20 bg-destructive/8 p-5 text-center text-sm text-brand-dim">
-                    This vehicle is marked sold in your live inventory.
+                    This one&rsquo;s sold. We may have something similar &mdash; get in touch.
                   </div>
                 )}
               </CardContent>

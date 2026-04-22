@@ -24,9 +24,9 @@ interface SearchParams {
 export const dynamic = 'force-dynamic';
 
 const sortLabels: Record<string, string> = {
-  newest: 'Newest Arrival',
-  'price-low': 'Price Ascending',
-  'price-high': 'Price Descending',
+  newest: 'Newest First',
+  'price-low': 'Price: Low to High',
+  'price-high': 'Price: High to Low',
 };
 
 function applyFilters(cars: Car[], params: SearchParams): Car[] {
@@ -95,19 +95,19 @@ export default async function InventoryPage({
       <div className="shell-container py-10 sm:py-12 lg:py-16">
         <section className="mb-10 grid gap-6 border-b border-white/8 pb-8 lg:grid-cols-[1fr,auto] lg:items-end">
           <div className="space-y-3">
-            <p className="section-kicker">Current Inventory</p>
+            <p className="section-kicker">Columbus, Ohio</p>
             <h1 className="font-display text-4xl uppercase tracking-[0.05em] text-white sm:text-5xl lg:text-6xl">
-              Current Inventory
+              Inventory
             </h1>
             <p className="page-subtitle max-w-3xl">
-              Available precision machines ready for immediate dispatch.
+              Everything on the lot right now.
             </p>
           </div>
           <div className="glass-panel min-w-[240px] rounded-[1.5rem] px-5 py-4 text-sm text-brand-dim">
-            <p className="section-kicker">Sort By</p>
+            <p className="section-kicker">Sort</p>
             <div className="mt-4 flex items-end justify-between gap-4">
               <span className="font-display text-2xl text-white">{sortLabels[sortBy] || sortLabels.newest}</span>
-              <span className="text-xs uppercase tracking-[0.18em] text-brand-dim">{cars.length} visible</span>
+              <span className="text-xs uppercase tracking-[0.18em] text-brand-dim">{cars.length} shown</span>
             </div>
           </div>
         </section>
@@ -127,10 +127,10 @@ export default async function InventoryPage({
             <div className="flex flex-col gap-3 border-b border-white/8 pb-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="section-kicker">Showing</p>
-                <h2 className="font-display text-3xl text-white">{cars.length} Vehicles</h2>
+                <h2 className="font-display text-3xl text-white">{cars.length} {cars.length === 1 ? 'vehicle' : 'vehicles'}</h2>
               </div>
               <p className="max-w-md text-sm leading-6 text-brand-dim">
-                Refine by search, body style, fuel type, year, and price to narrow the current collection.
+                Filter by make, body style, year, or price.
               </p>
             </div>
 
@@ -143,17 +143,14 @@ export default async function InventoryPage({
             ) : !hasLiveInventory ? (
               <Card className="rounded-[2rem]">
                 <CardContent className="flex min-h-[460px] flex-col items-center justify-center gap-6 text-center">
-                  <div className="rounded-full border border-accent/18 bg-accent/8 px-5 py-2 text-[0.66rem] font-semibold uppercase tracking-[0.28em] text-accent">
-                    Collection Standby
-                  </div>
                   <div className="space-y-3">
-                    <h3 className="font-display text-4xl text-white">Inventory Publishing Has Not Started Yet</h3>
+                    <h3 className="font-display text-4xl text-white">No inventory yet.</h3>
                     <p className="max-w-2xl text-sm leading-7 text-brand-dim">
-                      Once vehicles are published, this page will populate automatically with the current collection, detail pages, and inquiry-ready listings.
+                      Cars are being prepped and photographed. Reach out and we&rsquo;ll let you know when something matches.
                     </p>
                   </div>
                   <Button variant="accent" size="lg" asChild>
-                    <Link href="/contact">Contact The Dealership</Link>
+                    <Link href="/contact">Get in Touch</Link>
                   </Button>
                 </CardContent>
               </Card>
@@ -164,9 +161,9 @@ export default async function InventoryPage({
                     <Search className="h-10 w-10 text-accent/80" />
                   </div>
                   <div className="space-y-2">
-                    <h3 className="font-display text-4xl text-white">No Inventory Match</h3>
+                    <h3 className="font-display text-4xl text-white">Nothing matches.</h3>
                     <p className="max-w-md text-sm leading-7 text-brand-dim">
-                      Nothing in the current collection matches this selection. Reset the filters or widen your price and year range.
+                      Try widening your price or year range.
                     </p>
                   </div>
                   <Button variant={hasActiveFilters ? 'accent' : 'outline'} size="lg" asChild>

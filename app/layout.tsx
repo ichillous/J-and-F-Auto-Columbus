@@ -18,21 +18,21 @@ function resolveMetadataBase() {
 
 export const metadata: Metadata = {
   metadataBase: resolveMetadataBase(),
-  title: 'J&F Auto',
-  description: 'Precision-selected inventory, concierge acquisition, and premium dealership service.',
+  title: 'J&F Auto — Columbus, Ohio',
+  description: 'Quality used cars in Columbus, Ohio. Straight answers, clear prices, no pressure.',
   icons: {
     icon: '/jfautologo.png',
     apple: '/jfautologo.png',
   },
   openGraph: {
     type: 'website',
-    title: 'J&F Auto',
-    description: 'Precision-selected inventory, concierge acquisition, and premium dealership service.',
+    title: 'J&F Auto — Columbus, Ohio',
+    description: 'Quality used cars in Columbus, Ohio. Straight answers, clear prices, no pressure.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'J&F Auto',
-    description: 'Precision-selected inventory, concierge acquisition, and premium dealership service.',
+    title: 'J&F Auto — Columbus, Ohio',
+    description: 'Quality used cars in Columbus, Ohio. Straight answers, clear prices, no pressure.',
   },
 };
 

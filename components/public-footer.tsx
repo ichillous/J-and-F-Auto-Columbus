@@ -17,17 +17,15 @@ export function PublicFooter({ settings }: PublicFooterProps) {
         <div className="space-y-5">
           <Logo size="lg" />
           <p className="max-w-md text-sm leading-7 text-brand-dim">
-            {settings?.tagline || 'A refined dealership experience built around vetted inventory, clear communication, and private-client attention.'}
+            {settings?.tagline || 'Used cars in Columbus, Ohio. Every price on the page.'}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">Inventory Ready</Badge>
-            <Badge variant="secondary">Concierge Inquiry</Badge>
             <Badge variant="secondary">Columbus, Ohio</Badge>
           </div>
         </div>
 
         <div className="space-y-3">
-          <p className="section-kicker">Navigate</p>
+          <p className="section-kicker">Site</p>
           <div className="flex flex-col gap-2 text-sm text-brand-dim">
             <Link href="/" className="hover:text-white">Home</Link>
             <Link href="/inventory" className="hover:text-white">Inventory</Link>
@@ -36,7 +34,7 @@ export function PublicFooter({ settings }: PublicFooterProps) {
         </div>
 
         <div className="space-y-3">
-          <p className="section-kicker">Contact Desk</p>
+          <p className="section-kicker">Contact</p>
           <div className="space-y-2 text-sm text-brand-dim">
             {settings?.phone && <p>{settings.phone}</p>}
             {settings?.email && <p>{settings.email}</p>}
@@ -46,7 +44,6 @@ export function PublicFooter({ settings }: PublicFooterProps) {
       </div>
       <div className="shell-container flex flex-col gap-2 border-t border-white/8 py-4 text-[0.68rem] uppercase tracking-[0.2em] text-brand-dim sm:flex-row sm:items-center sm:justify-between">
         <p>&copy; {currentYear} J&amp;F Auto</p>
-        <p>Current inventory and inquiry availability subject to live dealership updates.</p>
       </div>
     </footer>
   );

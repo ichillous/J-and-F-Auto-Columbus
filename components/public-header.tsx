@@ -46,7 +46,7 @@ export function PublicHeader({ currentPath = '/' }: PublicHeaderProps) {
 
         <div className="flex items-center gap-3">
           <Button asChild variant="accent" size="default" className="hidden min-w-[120px] sm:inline-flex">
-            <Link href="/contact">Inquire</Link>
+            <Link href="/contact">Contact</Link>
           </Button>
           <ClientOnly
             fallback={(
@@ -65,7 +65,7 @@ export function PublicHeader({ currentPath = '/' }: PublicHeaderProps) {
               </SheetTrigger>
               <SheetContent side="right" className="w-[22rem]">
                 <SheetHeader className="mb-8">
-                  <SheetTitle>Navigate</SheetTitle>
+                  <SheetTitle>Menu</SheetTitle>
                 </SheetHeader>
                 <div className="flex flex-col gap-3">
                   {links.map((link) => {
@@ -83,7 +83,7 @@ export function PublicHeader({ currentPath = '/' }: PublicHeaderProps) {
                     );
                   })}
                   <Button asChild variant="outline" size="lg" className="mt-4 justify-start rounded-2xl px-5">
-                    <Link href="/contact">Start Concierge Inquiry</Link>
+                    <Link href="/contact">Get in Touch</Link>
                   </Button>
                 </div>
               </SheetContent>

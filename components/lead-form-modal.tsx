@@ -73,10 +73,10 @@ export function LeadFormModal({ carId, carTitle, type, children }: LeadFormModal
   };
 
   const title = type === 'test_drive'
-    ? 'Schedule Test Drive'
+    ? 'Schedule a Test Drive'
     : type === 'request_info'
-      ? 'Request More Info'
-      : 'Contact J&F Auto';
+      ? 'Ask About This Car'
+      : 'Send a Message';
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -100,9 +100,9 @@ export function LeadFormModal({ carId, carTitle, type, children }: LeadFormModal
                   <CheckCircle2 className="h-8 w-8 text-emerald-300" />
                 </div>
                 <div className="space-y-2">
-                  <p className="font-display text-3xl text-white">Inquiry Sent</p>
+                  <p className="font-display text-3xl text-white">Message sent.</p>
                   <p className="text-sm leading-7 text-brand-dim">
-                    Your lead was submitted successfully.
+                    We&rsquo;ll be in touch soon.
                   </p>
                 </div>
               </div>
@@ -182,7 +182,7 @@ export function LeadFormModal({ carId, carTitle, type, children }: LeadFormModal
                     Cancel
                   </Button>
                   <Button type="submit" variant="accent" size="lg" className="sm:flex-1" disabled={isSubmitting}>
-                    {isSubmitting ? 'Submitting...' : 'Submit Inquiry'}
+                    {isSubmitting ? 'Sending...' : 'Send'}
                   </Button>
                 </div>
               </form>

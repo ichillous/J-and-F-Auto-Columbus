@@ -20,15 +20,15 @@ export default async function ContactPage() {
         <section className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr] lg:items-end">
           <div className="space-y-4">
             <p className="section-kicker">Contact</p>
-            <h1 className="page-title">Direct Inquiry, Clear Response.</h1>
+            <h1 className="page-title">Get in touch.</h1>
             <p className="page-subtitle">
-              Reach the dealership directly, review business hours, or send an inquiry for the vehicle or purchase conversation you want to start.
+              Call, email, or send a message &mdash; whichever&rsquo;s easier.
             </p>
           </div>
           <Card>
             <CardContent className="space-y-4 p-7">
               <div className="border-b border-white/8 pb-4">
-                <p className="section-kicker">Dealership Desk</p>
+                <p className="section-kicker">Visit</p>
                 <h2 className="font-display text-3xl text-white">{settings?.dealership_name || 'J&F Auto'}</h2>
               </div>
               {settings?.phone ? (
@@ -61,8 +61,8 @@ export default async function ContactPage() {
                   <Clock className="h-5 w-5 text-accent" />
                 </div>
                 <div>
-                  <p className="section-kicker">Hours</p>
-                  <h2 className="font-display text-3xl text-white">Business Schedule</h2>
+                  <p className="section-kicker">Open</p>
+                  <h2 className="font-display text-3xl text-white">Hours</h2>
                 </div>
               </div>
               <div className="space-y-3">
@@ -79,21 +79,21 @@ export default async function ContactPage() {
           <Card>
             <CardContent className="space-y-6 p-7">
               <div className="space-y-3">
-                <p className="section-kicker">Lead Capture</p>
-                <h2 className="font-display text-4xl text-white">Open The Inquiry Form</h2>
+                <p className="section-kicker">Message</p>
+                <h2 className="font-display text-4xl text-white">Send a note</h2>
                 <p className="text-sm leading-7 text-brand-dim">
-                  Send a direct request for inventory questions, appointment planning, or a first conversation with the dealership team.
+                  Questions about a specific car, or want to set up a visit? Drop us a line.
                 </p>
               </div>
 
               <LeadFormModal type="general">
                 <Button variant="accent" size="xl" className="w-full sm:w-auto">
-                  Send Contact Request
+                  Send Message
                 </Button>
               </LeadFormModal>
 
               <div className="rounded-[1.5rem] border border-white/8 bg-white/[0.03] p-5 text-sm leading-7 text-brand-dim">
-                Prefer a direct conversation? Use the dealership details here or send the form and wait for a follow-up from the team.
+                We usually respond same-day during business hours.
               </div>
             </CardContent>
           </Card>
