@@ -24,7 +24,10 @@ export async function loginAction(formData: FormData): Promise<{ error?: string 
     result = await loginWithPassword(email, password);
   } catch (err) {
     const e = err as { name?: string; message?: string };
-    console.error('login failure', { code: e?.name, message: e?.message });
+    console.error('[loginAction] Cognito rejected authentication', {
+      code: e?.name,
+      message: e?.message,
+    });
     return { error: 'Invalid email or password.' };
   }
 
