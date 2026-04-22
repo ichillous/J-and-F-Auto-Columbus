@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import {
   AdminInitiateAuthCommand,
@@ -8,6 +10,15 @@ import {
 import { cognito } from './clients';
 import { awsEnv } from './env';
 import type { ProfileRole } from '@/lib/types';
+
+function buildAuthParams(base: Record<string, string>, username: string): Record<string, string> {
+  const secret = awsEnv.cognitoClientSecret();
+  if (!secret) return base;
+  const hash = createHmac('sha256', secret)
+    .update(username + awsEnv.cognitoClientId())
+    .digest('base64');
+  return { ...base, SECRET_HASH: hash };
+}
 
 let _verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
 function verifier() {
@@ -73,7 +84,7 @@ export async function loginWithPassword(email: string, password: string): Promis
       UserPoolId: awsEnv.cognitoUserPoolId(),
       ClientId: awsEnv.cognitoClientId(),
       AuthFlow: 'ADMIN_USER_PASSWORD_AUTH',
-      AuthParameters: { USERNAME: email, PASSWORD: password },
+      AuthParameters: buildAuthParams({ USERNAME: email, PASSWORD: password }, email),
     }),
   );
 
@@ -113,7 +124,7 @@ export async function respondToNewPasswordChallenge(
       ClientId: awsEnv.cognitoClientId(),
       ChallengeName: 'NEW_PASSWORD_REQUIRED',
       Session: session,
-      ChallengeResponses: { USERNAME: email, NEW_PASSWORD: newPassword },
+      ChallengeResponses: buildAuthParams({ USERNAME: email, NEW_PASSWORD: newPassword }, email),
     }),
   );
   const auth = result.AuthenticationResult;
