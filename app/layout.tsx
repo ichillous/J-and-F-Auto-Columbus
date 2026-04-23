@@ -20,10 +20,6 @@ export const metadata: Metadata = {
   metadataBase: resolveMetadataBase(),
   title: 'J&F Auto — Columbus, Ohio',
   description: 'Quality used cars in Columbus, Ohio. Straight answers, clear prices, no pressure.',
-  icons: {
-    icon: '/jfautologo.png',
-    apple: '/jfautologo.png',
-  },
   openGraph: {
     type: 'website',
     title: 'J&F Auto — Columbus, Ohio',
