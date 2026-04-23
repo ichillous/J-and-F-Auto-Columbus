@@ -17,7 +17,14 @@ export function ddb(): DynamoDBDocumentClient {
 
 let _s3: S3Client | null = null;
 export function s3(): S3Client {
-  if (!_s3) _s3 = new S3Client({ region: awsEnv.region() });
+  if (!_s3) {
+    _s3 = new S3Client({
+      region: awsEnv.region(),
+      // Browser uploads use presigned URLs, so avoid default checksum params
+      // that the browser PUT request cannot reproduce on its own.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+    });
+  }
   return _s3;
 }
 

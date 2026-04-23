@@ -37,8 +37,6 @@ export async function presignUpload(input: {
     Bucket: awsEnv.s3Bucket(),
     Key: key,
     ContentType: input.contentType,
-    ContentLength: input.contentLength,
-    CacheControl: 'public, max-age=31536000, immutable',
   });
 
   const uploadUrl = await getSignedUrl(s3(), cmd, { expiresIn: 300 });

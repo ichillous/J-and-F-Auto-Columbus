@@ -20,10 +20,34 @@ interface PresignResponse {
   key: string;
 }
 
+function extractS3ErrorCode(body: string): string | null {
+  const match = body.match(/<Code>([^<]+)<\/Code>/i);
+  return match?.[1] ?? null;
+}
+
+function describeUploadFailure(status: number, body: string): string {
+  const code = extractS3ErrorCode(body);
+
+  if (code === 'SignatureDoesNotMatch' || code === 'AuthorizationQueryParametersError') {
+    return 'S3 rejected the upload signature. Check the bucket region and presigned-upload configuration.';
+  }
+
+  if (code === 'BadDigest' || code === 'XAmzContentChecksumMismatch') {
+    return 'S3 rejected the upload integrity check. Retry the upload; if it keeps failing, the presigned upload config is mismatched.';
+  }
+
+  if (code === 'AccessDenied') {
+    return 'S3 denied the upload. Check the bucket CORS rules and the app IAM role permissions.';
+  }
+
+  return `Upload failed (${status})`;
+}
+
 async function presignAndPut(file: File, carId?: string): Promise<string> {
   const presignRes = await fetch('/api/admin/upload-url', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
+    credentials: 'same-origin',
     body: JSON.stringify({
       contentType: file.type,
       contentLength: file.size,
@@ -31,18 +55,30 @@ async function presignAndPut(file: File, carId?: string): Promise<string> {
       carId,
     }),
   });
+  if (presignRes.status === 401) {
+    throw new Error('Your admin session expired. Sign in again and retry the upload.');
+  }
   if (!presignRes.ok) {
     const err = (await presignRes.json().catch(() => ({}))) as { error?: string };
     throw new Error(err.error ?? 'Failed to presign upload');
   }
   const { uploadUrl, publicUrl } = (await presignRes.json()) as PresignResponse;
-  const putRes = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'content-type': file.type },
-    body: file,
-  });
+  let putRes: Response;
+  try {
+    putRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'content-type': file.type },
+      body: file,
+    });
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error('Could not reach S3 for the upload. Check the bucket CORS rules for PUT requests from this site.');
+    }
+    throw err;
+  }
   if (!putRes.ok) {
-    throw new Error(`Upload failed (${putRes.status})`);
+    const body = await putRes.text().catch(() => '');
+    throw new Error(describeUploadFailure(putRes.status, body));
   }
   return publicUrl;
 }
