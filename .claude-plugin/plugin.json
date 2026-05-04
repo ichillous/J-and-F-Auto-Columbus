@@ -1,0 +1,8 @@
+{
+  "name": "jandfauto",
+  "version": "0.1.0",
+  "description": "Next.js App Router dealership site with Supabase-backed admin",
+  "skills": [
+    "./skills/"
+  ]
+}

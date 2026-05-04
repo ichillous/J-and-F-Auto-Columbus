@@ -1,29 +1,53 @@
 import type { NextConfig } from 'next';
 
-const remotePatterns: NonNullable<NonNullable<NextConfig['images']>['remotePatterns']> = [];
+type RemotePattern = NonNullable<NonNullable<NextConfig['images']>['remotePatterns']>[number];
+
+const remotePatterns: RemotePattern[] = [];
+const seenHostnames = new Set<string>();
+
+function addHost(protocol: 'https' | 'http', hostname: string) {
+  const key = `${protocol}://${hostname}`;
+  if (seenHostnames.has(key)) return;
+  seenHostnames.add(key);
+  remotePatterns.push({ protocol, hostname, pathname: '/**' });
+}
 
 const explicitBase = process.env.JFAUTO_S3_PUBLIC_BASE_URL?.trim();
 if (explicitBase) {
   try {
     const url = new URL(explicitBase);
-    remotePatterns.push({
-      protocol: url.protocol.replace(':', '') as 'https' | 'http',
-      hostname: url.hostname,
-      pathname: '/**',
-    });
+    addHost(url.protocol.replace(':', '') as 'https' | 'http', url.hostname);
   } catch {
     // ignore invalid base url at config time
   }
-} else {
-  const bucket = process.env.JFAUTO_S3_BUCKET?.trim();
-  const region = process.env.AWS_REGION?.trim() || 'us-east-1';
-  if (bucket) {
-    remotePatterns.push({
-      protocol: 'https',
-      hostname: `${bucket}.s3.${region}.amazonaws.com`,
-      pathname: '/**',
-    });
+}
+
+const bucket = process.env.JFAUTO_S3_BUCKET?.trim();
+const region = process.env.AWS_REGION?.trim() || 'us-east-1';
+if (bucket) {
+  addHost('https', `${bucket}.s3.${region}.amazonaws.com`);
+}
+
+// Escape hatch: comma-separated list of extra hostnames (or full URLs) to allow
+// for next/image. Useful when the derived hostname doesn't match the deployed
+// bucket (e.g. bucket rename, CloudFront alias, region mismatch at build time).
+const extraHosts = process.env.JFAUTO_IMAGE_ALLOWED_HOSTS?.trim();
+if (extraHosts) {
+  for (const entry of extraHosts.split(',').map((s) => s.trim()).filter(Boolean)) {
+    try {
+      const url = new URL(entry.includes('://') ? entry : `https://${entry}`);
+      addHost(url.protocol.replace(':', '') as 'https' | 'http', url.hostname);
+    } catch {
+      // skip malformed entries
+    }
   }
+}
+
+if (remotePatterns.length === 0) {
+  console.warn(
+    '[next.config] images.remotePatterns is empty. /_next/image will 403 for every remote URL. ' +
+      'Set JFAUTO_S3_PUBLIC_BASE_URL, JFAUTO_S3_BUCKET+AWS_REGION, or JFAUTO_IMAGE_ALLOWED_HOSTS.',
+  );
 }
 
 const nextConfig: NextConfig = {

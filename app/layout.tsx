@@ -22,13 +22,18 @@ export const metadata: Metadata = {
   description: 'Quality used cars in Columbus, Ohio. Straight answers, clear prices, no pressure.',
   openGraph: {
     type: 'website',
+    siteName: 'J&F Auto Group',
+    url: '/',
+    locale: 'en_US',
     title: 'J&F Auto — Columbus, Ohio',
     description: 'Quality used cars in Columbus, Ohio. Straight answers, clear prices, no pressure.',
+    images: [{ url: '/opengraph-image.png', width: 1200, height: 630, alt: 'J&F Auto Group — jfautodeals.com' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'J&F Auto — Columbus, Ohio',
     description: 'Quality used cars in Columbus, Ohio. Straight answers, clear prices, no pressure.',
+    images: [{ url: '/twitter-image.png', width: 1200, height: 630, alt: 'J&F Auto Group — jfautodeals.com' }],
   },
 };
 
